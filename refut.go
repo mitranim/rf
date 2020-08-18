@@ -1,7 +1,7 @@
 /*
 Utilities missing from the "reflect" package: easier struct traversal, deep
-dereferencing, various boolean tests such as generic `IsNil` or `IsEmpty`, and
-some more. Small and dependency-free.
+dereferencing, various boolean tests such as generic `IsNil`, and some more.
+Small and dependency-free.
 
 Naming Conventions
 
@@ -57,13 +57,16 @@ The callback receives arguments for a specific struct field:
 
 • `reflect.StructField`: field description.
 
-• `[]int`: path to the field, which can be passed to
-`reflect.Value.FieldByIndex` on the root value.
+• `[]int`: path to the field, suitable for `reflect.Value.FieldByIndex` or
+`RvalFieldByPathAlloc` on the root value. See `TraverseStructType` for notes
+about the path.
 
-See `TraverseStructType` for notes about the `[]int` path.
+WARNING: the path slice is allocated once and mutated between iterations. To
+store the path for later use, you MUST copy the slice.
 
-The input may be a struct pointer, which is automatically dereferenced. A nil
-pointer causes a panic.
+The input may be a struct pointer, which is automatically dereferenced. Nil
+struct pointers at the root level or as embedded fields are okay and won't be
+traversed.
 
 If the input is not a struct, or if the callback is nil, this function panics.
 Returned errors are always from the callback.
@@ -80,14 +83,58 @@ If the input is not a struct, or if the callback is nil, this function panics.
 Returned errors are always from the callback.
 */
 func TraverseStructRval(rval reflect.Value, fun func(reflect.Value, reflect.StructField, []int) error) error {
-	rval = onlyStructRval(RvalDeref(rval))
+	return traverseStructRval(rval, fun, nil)
+}
+
+func traverseStructRval(rval reflect.Value, fun func(reflect.Value, reflect.StructField, []int) error, path []int) error {
+	// Deref and validate the type first, because we might not fully deref the
+	// value to check its type.
+	rtype := RtypeDeref(rval.Type())
+	if rtype.Kind() != reflect.Struct {
+		panic(ErrInvalidValue)
+	}
+
 	if fun == nil {
 		panic(ErrMissingFunc)
 	}
 
-	return TraverseStructRtype(rval.Type(), func(sfield reflect.StructField, path []int) error {
-		return fun(rval.FieldByIndex(path), sfield, path)
-	})
+	for rval.Kind() == reflect.Ptr {
+		// Nil struct pointers are okay and not traversed.
+		if rval.IsNil() {
+			return nil
+		}
+		rval = rval.Elem()
+	}
+
+	for i := 0; i < rtype.NumField(); i++ {
+		sfield := rtype.Field(i)
+		if !IsSfieldExported(sfield) {
+			continue
+		}
+
+		/**
+		If this is an embedded struct, traverse its fields as if they're in the
+		parent struct. If the embedded struct is a nil pointer, skip it.
+		*/
+		if sfield.Anonymous && RtypeDeref(sfield.Type).Kind() == reflect.Struct {
+			path = append(path, i)
+			err := traverseStructRval(rval.Field(i), fun, path)
+			if err != nil {
+				return err
+			}
+			path = path[:len(path)-1]
+			continue
+		}
+
+		path = append(path, i)
+		err := fun(rval.Field(i), sfield, path)
+		if err != nil {
+			return err
+		}
+		path = path[:len(path)-1]
+	}
+
+	return nil
 }
 
 /*
@@ -102,14 +149,15 @@ The callback receives arguments for a specific struct field:
 
 • `reflect.StructField`: field description.
 
-• `[]int`: path to the field, which can be passed to `reflect.Type.FieldByIndex`
-on the root value.
+• `[]int`: path to the field.
 
 The reason the path is a slice of ints, rather than one int, is because
-addressing a field of an embedded struct requires more than one index. See
-`reflect.Type.FieldByIndex`. WARNING: the path slice is allocated once and
-mutated between iterations. To store the path for later use, you MUST copy the
-slice.
+addressing a field of an embedded struct requires more than one index. The path
+is suitable for `reflect.Type.FieldByIndex` on the root type or
+`RvalFieldByPathAlloc` on a value of that type.
+
+WARNING: the path slice is allocated once and mutated between iterations. To
+store the path for later use, you MUST copy the slice.
 
 If the input is not a struct type, or if the callback is nil, this function
 panics. Returned errors are always from the callback.
@@ -126,15 +174,15 @@ If the input is not a struct type, or if the callback is nil, this function
 panics. Returned errors are always from the callback.
 */
 func TraverseStructRtype(rtype reflect.Type, fun func(reflect.StructField, []int) error) error {
+	rtype = RtypeDeref(rtype)
+	validateStructRtype(rtype)
+	if fun == nil {
+		panic(ErrMissingFunc)
+	}
 	return traverseStructRtype(rtype, fun, nil)
 }
 
 func traverseStructRtype(rtype reflect.Type, fun func(reflect.StructField, []int) error, path []int) error {
-	rtype = onlyStructRtype(RtypeDeref(rtype))
-	if fun == nil {
-		panic(ErrMissingFunc)
-	}
-
 	for i := 0; i < rtype.NumField(); i++ {
 		sfield := rtype.Field(i)
 		if !IsSfieldExported(sfield) {
@@ -145,14 +193,17 @@ func traverseStructRtype(rtype reflect.Type, fun func(reflect.StructField, []int
 		If this is an embedded struct, traverse its fields as if they're in the
 		parent struct.
 		*/
-		if sfield.Anonymous && RtypeDeref(sfield.Type).Kind() == reflect.Struct {
-			path = append(path, i)
-			err := traverseStructRtype(sfield.Type, fun, path)
-			if err != nil {
-				return err
+		if sfield.Anonymous {
+			fieldRtype := RtypeDeref(sfield.Type)
+			if fieldRtype.Kind() == reflect.Struct {
+				path = append(path, i)
+				err := traverseStructRtype(fieldRtype, fun, path)
+				if err != nil {
+					return err
+				}
+				path = path[:len(path)-1]
+				continue
 			}
-			path = path[:len(path)-1]
-			continue
 		}
 
 		path = append(path, i)
@@ -198,7 +249,7 @@ func IsSfieldExported(sfield reflect.StructField) bool {
 }
 
 /*
-Takes a `reflect.Type` and dereferences as many times as needed, until it's no
+Takes a `reflect.Type` and dereferences as many times as needed until it's no
 longer a pointer type. A nil type is ok and returns nil.
 
 Note: if the type is defined recursively as a pointer to itself, this will loop
@@ -212,7 +263,7 @@ func RtypeDeref(rtype reflect.Type) reflect.Type {
 }
 
 /*
-Takes a `reflect.Value` and dereferences as many times as needed, until it's no
+Takes a `reflect.Value` and dereferences as many times as needed until it's no
 longer a pointer. Panics if any pointer in the sequence is nil.
 
 Note: if the type is defined recursively as a pointer to itself, this will loop
@@ -223,6 +274,60 @@ func RvalDeref(rval reflect.Value) reflect.Value {
 		rval = rval.Elem()
 	}
 	return rval
+}
+
+/*
+Takes a `reflect.Value` and dereferences as many times as needed until it's no
+longer a pointer, while allocating intermediary values as necessary. If the
+input value is a pointer, it must be settable or non-nil, otherwise this causes
+a panic.
+
+Example:
+
+	var val ***string
+	rval := refut.RvalDerefAlloc(reflect.ValueOf(&val))
+	rval.SetString("hello world")
+	fmt.Println(***val) // "hello world"
+*/
+func RvalDerefAlloc(rval reflect.Value) reflect.Value {
+	for rval.Kind() == reflect.Ptr {
+		if rval.IsNil() {
+			rval.Set(reflect.New(rval.Type().Elem()))
+		}
+		rval = rval.Elem()
+	}
+	return rval
+}
+
+/*
+Variant of `reflect.Value.FieldByIndex` that allocates intermediary values for
+fields which are struct pointers. For example:
+
+	type Inner struct { Value string }
+	type Outer struct { *Inner }
+
+	var outer Outer
+	rval := refut.RvalFieldByPathAlloc(reflect.ValueOf(&outer), []int{0, 0})
+	rval.SetString("hello world")
+	fmt.Println(outer.Value) // "hello world"
+
+Unlike `reflect.Value.FieldByIndex`, this function also allows the input value
+to be a non-nil struct pointer of any depth, as seen in the example above.
+*/
+func RvalFieldByPathAlloc(rval reflect.Value, path []int) reflect.Value {
+	rval = RvalDerefAlloc(rval)
+	if rval.Kind() != reflect.Struct {
+		panic(ErrInvalidValue)
+	}
+
+	switch len(path) {
+	case 0:
+		return rval
+	case 1:
+		return rval.Field(path[0])
+	default:
+		return RvalFieldByPathAlloc(rval.Field(path[0]), path[1:])
+	}
 }
 
 /*
@@ -316,16 +421,9 @@ func IsRvalEmptyColl(rval reflect.Value) bool {
 	return IsRkindColl(rval.Kind()) && rval.Len() == 0
 }
 
-func onlyStructRtype(rtype reflect.Type) reflect.Type {
+func validateStructRtype(rtype reflect.Type) {
 	if rtype != nil && rtype.Kind() == reflect.Struct {
-		return rtype
+		return
 	}
 	panic(ErrInvalidType)
-}
-
-func onlyStructRval(rval reflect.Value) reflect.Value {
-	if rval.Kind() == reflect.Struct {
-		return rval
-	}
-	panic(ErrInvalidValue)
 }

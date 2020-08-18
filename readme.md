@@ -6,6 +6,13 @@ See the full documentation at https://godoc.org/github.com/mitranim/refut.
 
 ## Changelog
 
+### 0.1.1
+
+* Bugfix: `TraverseStruct` and `TraverseStructRval` no longer attempt to traverse nil embedded struct pointers.
+* `TraverseStruct` and `TraverseStructRval` now allow a nil struct pointer as input, without traversing its fields. This behavior is consistent with nil embedded struct pointers.
+* Added `RvalDerefAlloc`.
+* Added `RvalFieldByPathAlloc`.
+
 ### 0.1.0
 
 First tagged release.

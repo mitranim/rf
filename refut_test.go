@@ -10,26 +10,38 @@ type Composite struct {
 	Exported1   string
 	unexported0 string
 	unexported1 string
+	Named       Named
+	NamedPtr    *NamedPtr
 	Embedded
-	Named    Named
-	NamedPtr *NamedPtr
-}
-
-type Embedded struct {
-	Exported2   string
-	Exported3   string
-	unexported2 string
-	unexported3 string
+	*EmbeddedPtrNonEmpty
+	*EmbeddedPtrEmpty
 }
 
 type Named struct {
+	Exported2 string
+	Exported3 string
+}
+
+type NamedPtr struct {
 	Exported4 string
 	Exported5 string
 }
 
-type NamedPtr struct {
-	Exported6 string
-	Exported7 string
+type Embedded struct {
+	Exported6   string
+	Exported7   string
+	unexported2 string
+	unexported3 string
+}
+
+type EmbeddedPtrNonEmpty struct {
+	Exported8 string
+	Exported9 string
+}
+
+type EmbeddedPtrEmpty struct {
+	Exported10 string
+	Exported11 string
 }
 
 type Field struct {
@@ -38,19 +50,24 @@ type Field struct {
 }
 
 func makeComposite() Composite {
-	val := Composite{NamedPtr: &NamedPtr{}}
+	val := Composite{
+		NamedPtr:            &NamedPtr{},
+		EmbeddedPtrNonEmpty: &EmbeddedPtrNonEmpty{},
+	}
 	val.Exported0 = "Exported0"
 	val.Exported1 = "Exported1"
 	val.unexported0 = "unexported0"
 	val.unexported1 = "unexported1"
-	val.Exported2 = "Exported2"
-	val.Exported3 = "Exported3"
+	val.Named.Exported2 = "Exported2"
+	val.Named.Exported3 = "Exported3"
+	val.NamedPtr.Exported4 = "Exported4"
+	val.NamedPtr.Exported5 = "Exported5"
+	val.Exported6 = "Exported6"
+	val.Exported7 = "Exported7"
 	val.unexported2 = "unexported2"
 	val.unexported3 = "unexported3"
-	val.Named.Exported4 = "Exported4"
-	val.Named.Exported5 = "Exported5"
-	val.NamedPtr.Exported6 = "Exported6"
-	val.NamedPtr.Exported7 = "Exported7"
+	val.Exported8 = "Exported8"
+	val.Exported9 = "Exported9"
 	return val
 }
 
@@ -71,18 +88,20 @@ func TestTraverseStruct(t *testing.T) {
 	expected := []Field{
 		{"Exported0", value.Exported0},
 		{"Exported1", value.Exported1},
-		{"Exported2", value.Exported2},
-		{"Exported3", value.Exported3},
 		{"Named", value.Named},
 		{"NamedPtr", value.NamedPtr},
+		{"Exported6", value.Exported6},
+		{"Exported7", value.Exported7},
+		{"Exported8", value.Exported8},
+		{"Exported9", value.Exported9},
 	}
 
 	if !reflect.DeepEqual(expected, fields) {
 		t.Fatalf(`
 Expected to visit the following fields:
-%#v
+%v
 Got the following:
-%#v
+%v
 `, expected, fields)
 	}
 }
@@ -99,14 +118,25 @@ func TestTraverseStructType(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	expected := []string{"Exported0", "Exported1", "Exported2", "Exported3", "Named", "NamedPtr"}
+	expected := []string{
+		"Exported0",
+		"Exported1",
+		"Named",
+		"NamedPtr",
+		"Exported6",
+		"Exported7",
+		"Exported8",
+		"Exported9",
+		"Exported10",
+		"Exported11",
+	}
 
 	if !reflect.DeepEqual(expected, fieldNames) {
 		t.Fatalf(`
 Expected to visit the following fields:
-%#v
+%v
 Got the following:
-%#v
+%v
 `, expected, fieldNames)
 	}
 }
@@ -175,12 +205,39 @@ func TestRvalDeref(t *testing.T) {
 	test(RvalDeref(rv(val2)).Interface(), "hello world")
 }
 
+func TestRvalDerefAlloc(t *testing.T) {
+	var val ***string
+	rval := RvalDerefAlloc(reflect.ValueOf(&val))
+	rval.SetString("hello world")
+
+	expected := "hello world"
+	actual := rval.Interface()
+
+	if expected != actual {
+		t.Fatalf(`expected RvalDerefAlloc(%T) = %#v, got %#v`, val, expected, actual)
+	}
+}
+
+func TestRvalFieldByPathAlloc(t *testing.T) {
+	var val ***Composite
+	path := []int{5, 1}
+	rval := RvalFieldByPathAlloc(reflect.ValueOf(&val), path)
+	rval.SetString("hello world")
+
+	expected := "hello world"
+	actual := rval.Interface()
+
+	if expected != actual {
+		t.Fatalf(`expected RvalFieldByPathAlloc(%T, #%v) = %#v, got %#v`, val, path, expected, actual)
+	}
+}
+
 // This automatically tests `IsRkindNilable`.
 func TestIsNilable(t *testing.T) {
 	test := func(val interface{}, expected bool) {
 		actual := IsNilable(val)
 		if expected != actual {
-			t.Fatalf(`expected IsNilable(%#v) = %v, got %v`, val, expected, actual)
+			t.Fatalf(`expected IsNilable(%#v) = %#v, got %#v`, val, expected, actual)
 		}
 	}
 
@@ -203,7 +260,7 @@ func TestIsNil(t *testing.T) {
 	test := func(val interface{}, expected bool) {
 		actual := IsNil(val)
 		if expected != actual {
-			t.Fatalf(`expected IsNil(%#v) = %v, got %v`, val, expected, actual)
+			t.Fatalf(`expected IsNil(%#v) = %#v, got %#v`, val, expected, actual)
 		}
 	}
 
@@ -235,7 +292,7 @@ func TestIsColl(t *testing.T) {
 	test := func(val interface{}, expected bool) {
 		actual := IsColl(val)
 		if expected != actual {
-			t.Fatalf(`expected IsColl(%#v) = %v, got %v`, val, expected, actual)
+			t.Fatalf(`expected IsColl(%#v) = %#v, got %#v`, val, expected, actual)
 		}
 	}
 
@@ -258,7 +315,7 @@ func TestIsEmptyColl(t *testing.T) {
 	test := func(val interface{}, expected bool) {
 		actual := IsEmptyColl(val)
 		if expected != actual {
-			t.Fatalf(`expected IsEmptyColl(%#v) = %v, got %v`, val, expected, actual)
+			t.Fatalf(`expected IsEmptyColl(%#v) = %#v, got %#v`, val, expected, actual)
 		}
 	}
 
@@ -297,7 +354,8 @@ func BenchmarkTraverseRtypeInline(b *testing.B) {
 }
 
 func traverseRtypeInline(rtype reflect.Type) error {
-	rtype = onlyStructRtype(rtype)
+	rtype = RtypeDeref(rtype)
+	validateStructRtype(rtype)
 
 	for i := 0; i < rtype.NumField(); i++ {
 		sfield := rtype.Field(i)
