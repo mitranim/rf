@@ -19,7 +19,7 @@ First tagged release.
 
 ## License
 
-https://en.wikipedia.org/wiki/WTFPL
+https://unlicense.org
 
 ## Misc
 

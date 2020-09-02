@@ -168,7 +168,7 @@ func TraverseStructType(val interface{}, fun func(reflect.StructField, []int) er
 
 /*
 Variant of `TraverseStructType` that takes a `reflect.Type` as the input. See
-`TraverseStruct` for the documentation.
+`TraverseStructType` for the documentation.
 
 If the input is not a struct type, or if the callback is nil, this function
 panics. Returned errors are always from the callback.
