@@ -265,9 +265,6 @@ func RtypeDeref(rtype reflect.Type) reflect.Type {
 /*
 Takes a `reflect.Value` and dereferences as many times as needed until it's no
 longer a pointer. Panics if any pointer in the sequence is nil.
-
-Note: if the type is defined recursively as a pointer to itself, this will loop
-forever.
 */
 func RvalDeref(rval reflect.Value) reflect.Value {
 	for rval.Kind() == reflect.Ptr {
@@ -379,6 +376,22 @@ documentation.
 */
 func IsRvalNil(rval reflect.Value) bool {
 	return !rval.IsValid() || IsRkindNilable(rval.Kind()) && rval.IsNil()
+}
+
+/*
+Returns true if the input is a zero value of its type. As a special case,
+returns true if the input itself is nil (carries no type information).
+*/
+func IsZero(val interface{}) bool {
+	return val == nil || IsRvalZero(reflect.ValueOf(val))
+}
+
+/*
+Variant of `reflect.Value.IsZero` that returns false for invalid values instead
+of panicking.
+*/
+func IsRvalZero(rval reflect.Value) bool {
+	return !rval.IsValid() || rval.IsZero()
 }
 
 /*
