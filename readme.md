@@ -1,29 +1,20 @@
 ## Overview
 
-Short for "**ref**lect **ut**ils": utilities missing from the "reflect" package in the Go standard library. Small and dependency-free.
+Short for "**r**e**f**lect utils": utilities missing from the "reflect" package in the Go standard library. Small and dependency-free.
 
-See the full documentation at https://godoc.org/github.com/mitranim/refut.
+See the full documentation at https://pkg.go.dev/github.com/mitranim/rf.
 
 ## Changelog
 
-### v0.1.3
+### v0.2.0
 
-Added `IsZero`, `IsRvalZero`.
+Complete revision.
 
-### v0.1.2
-
-Changed to Unlicense.
-
-### v0.1.1
-
-* Bugfix: `TraverseStruct` and `TraverseStructRval` no longer attempt to traverse nil embedded struct pointers.
-* `TraverseStruct` and `TraverseStructRval` now allow a nil struct pointer as input, without traversing its fields. This behavior is consistent with nil embedded struct pointers.
-* Added `RvalDerefAlloc`.
-* Added `RvalFieldByPathAlloc`.
-
-### v0.1.0
-
-First tagged release.
+* Removed useless or rarely-used utils.
+* Added many missing utils.
+* New approach to walking / traversal. The old naive approach walked the entire structure every time. The new approach is to JIT-compile a precise walker that visits just what you need, caching it for a combination of type + filter. This makes walking dramatically more efficient.
+* Added `Cache` for generating and caching arbitrary type-dependent structures.
+* Renamed from `github.com/mitranim/refut` to `github.com/mitranim/rf` for brevity.
 
 ## License
 
