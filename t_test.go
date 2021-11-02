@@ -523,11 +523,11 @@ func Test_walking(t *testing.T) {
 	{
 		vis := AppenderFor((*string)(nil))
 
-		Walk(testValOuter, vis.Filter(), vis)
+		Walk(testOuterVal, vis.Filter(), vis)
 
 		eq(
 			t,
-			[]string{`embed val`, `embed ptr val`, `outer val`, `inner val`, `inner ptr val`},
+			[]string{`embed val`, `embed ptr val`, `outer val`, `inner val`, `inner ptr val`, `outer iface`},
 			vis.Interface(),
 		)
 	}
@@ -535,7 +535,7 @@ func Test_walking(t *testing.T) {
 	{
 		vis := AppenderFor((*int)(nil))
 
-		Walk(testValOuter, vis.Filter(), vis)
+		Walk(testOuterVal, vis.Filter(), vis)
 
 		eq(
 			t,
@@ -543,4 +543,22 @@ func Test_walking(t *testing.T) {
 			vis.Interface(),
 		)
 	}
+}
+
+func TestMaybeOr(t *testing.T) {
+	eq(t, nil, MaybeOr())
+	eq(t, nil, MaybeOr(nil, nil, nil))
+	eq(t, Nop{}, MaybeOr(Nop{}))
+	eq(t, Nop{}, MaybeOr(nil, Nop{}, nil))
+	eq(t, Or{Nop{}, True{}}, MaybeOr(nil, Nop{}, nil, True{}))
+	eq(t, Or{Nop{}, True{}, False{}}, MaybeOr(nil, Nop{}, nil, True{}, nil, False{}))
+}
+
+func TestMaybeAnd(t *testing.T) {
+	eq(t, nil, MaybeAnd())
+	eq(t, nil, MaybeAnd(nil, nil, nil))
+	eq(t, Nop{}, MaybeAnd(Nop{}))
+	eq(t, Nop{}, MaybeAnd(nil, Nop{}, nil))
+	eq(t, And{Nop{}, True{}}, MaybeAnd(nil, Nop{}, nil, True{}))
+	eq(t, And{Nop{}, True{}, False{}}, MaybeAnd(nil, Nop{}, nil, True{}, nil, False{}))
 }

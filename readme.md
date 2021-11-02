@@ -6,6 +6,12 @@ See the full documentation at https://pkg.go.dev/github.com/mitranim/rf.
 
 ## Changelog
 
+### v0.2.1
+
+`Walk` / `GetWalker` now support walking into `interface{}` values, fetching the appropriate cached walker for the given type and filter on the fly.
+
+Added `MaybeOr`, `MaybeAnd`, `GetTypeFilter`, `TypeFilterFor` for micro-optimizing filter allocations.
+
 ### v0.2.0
 
 Complete revision.

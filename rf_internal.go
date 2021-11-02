@@ -9,8 +9,9 @@ import (
 var (
 	walkerCacheStatic walkerCache
 
-	typeFilter = r.TypeOf((*Filter)(nil)).Elem()
-	typeType   = r.TypeOf((*r.Type)(nil)).Elem()
+	typeEmptyIface = r.TypeOf((*interface{})(nil)).Elem()
+	typeFilter     = r.TypeOf((*Filter)(nil)).Elem()
+	typeType       = r.TypeOf((*r.Type)(nil)).Elem()
 )
 
 type walkey struct {
@@ -113,6 +114,24 @@ func (self indexWalker) Walk(val r.Value, vis Visitor) {
 	self.Inner.Walk(val.Field(self.Index), vis)
 }
 
+type ifaceWalker struct {
+	Parent r.Type
+	Field  r.StructField
+	Filter Filter
+}
+
+func (self ifaceWalker) Walk(val r.Value, vis Visitor) {
+	if val.IsNil() {
+		return
+	}
+
+	val = val.Elem()
+	walker := walkerCacheStatic.get(val.Type(), self.Parent, self.Field, self.Filter)
+	if walker != nil {
+		walker.Walk(val, vis)
+	}
+}
+
 type leafFieldWalker r.StructField
 
 func (self leafFieldWalker) Walk(val r.Value, vis Visitor) {
@@ -139,6 +158,12 @@ func makeWalker(typ, parent r.Type, field r.StructField, fil Filter) Walker {
 
 	case r.Struct:
 		return makeStructWalker(typ, parent, field, fil)
+
+	case r.Interface:
+		if typ == typeEmptyIface {
+			return makeIfaceWalker(typ, parent, field, fil)
+		}
+		return makeLeafWalker(typ, parent, field, fil)
 
 	default:
 		return makeLeafWalker(typ, parent, field, fil)
@@ -180,6 +205,10 @@ func maybeAppendIndexWalker(out structWalker, typ r.Type, index int, fil Filter)
 		out = append(out, indexWalker{index, inner})
 	}
 	return out
+}
+
+func makeIfaceWalker(typ, parent r.Type, field r.StructField, fil Filter) Walker {
+	return makeNodeWalker(typ, parent, field, fil, ifaceWalker{parent, field, fil})
 }
 
 func makeNodeWalker(typ, parent r.Type, field r.StructField, fil Filter, inner Walker) Walker {
@@ -255,4 +284,21 @@ func errInvalidFilter(src Filter, val r.Value) Err {
 		`validating walk filter`,
 		fmt.Errorf(`invalid filter %#v: contains %v of kind %v`, src, val, val.Kind()),
 	}
+}
+
+func maybeCombineFilters(src, out []Filter) []Filter {
+	for _, val := range src {
+		if val == nil {
+			continue
+		}
+
+		if len(out) >= cap(out) {
+			panic(Err{
+				`building a combined filter`,
+				fmt.Errorf(`exceeding filter capacity %v`, cap(out)),
+			})
+		}
+		out = append(out, val)
+	}
+	return out
 }

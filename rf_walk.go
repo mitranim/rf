@@ -14,7 +14,7 @@ used as values rather than pointers. The following is the CORRECT way to
 construct filters:
 
 	var filter rf.Filter = rf.And{
-		rf.TypeFilter{rf.DerefType((*string)(nil))},
+		TypeFilterFor((*string)(nil)),
 		rf.TagFilter{`json`, `fieldName`},
 	}
 
@@ -48,6 +48,22 @@ additionally assert that the provided `reflect.Value` has the same type for
 which the walker is generated. When using `rf.Walk` or `rf.WalkFunc`, this is
 handled for you. Otherwise, it's your responsibility to pass a value of the
 same type. Walkers also assume that the visitor is non-nil.
+
+This package currently does NOT support walking into maps, for two reasons:
+unclear semantics and inefficiency. It's unclear if we should walk keys,
+values, or key-value pairs, and how that affects the rest of the walking API.
+Currently in Go 1.17, reflect-based map walking has horrible inefficiencies
+which can't be amortized by 3rd party code. It would be a massive performance
+footgun.
+
+This package does support walking into `interface{}` values included into other
+structures, but at an efficiency loss. In general, our walking mechanism relies
+on statically determining what we should and shouldn't visit, which is possible
+only with static types. The dynamic typing of `interface{}` defeats this design
+by forcing us to always visit every `interface{}`, and may produce significant
+slowdowns. However, while visiting each `interface{}` is an unfortunate
+inefficiency, walking the value referenced by an `interface{}` is as precise
+and efficient as with static types.
 */
 type Walker interface {
 	Walk(r.Value, Visitor)
@@ -131,12 +147,7 @@ to a slice. The additional filter is optional.
 */
 func TrawlWith(src, out interface{}, fil Filter) {
 	appender := Appender{ValidPtrToKind(out, r.Slice).Elem()}
-
-	filter := Filter(appender.Filter())
-	if fil != nil {
-		filter = And{filter, fil}
-	}
-
+	filter := MaybeAnd(appender.Filter(), fil)
 	Walk(r.ValueOf(src), filter, appender)
 }
 
@@ -153,6 +164,22 @@ type False struct{}
 
 // Implement `rf.Filter`.
 func (False) ShouldVisit(r.Type, r.StructField) bool { return false }
+
+/*
+Returns a cached `rf.Filter` for the given type, avoiding an allocation caused
+by converting `rf.TypeFilter` to an interface. This may actually cost slightly
+more CPU cycles due to intermediary `sync.Map` usage. May not be worth it.
+*/
+func GetTypeFilter(typ r.Type) Filter {
+	return typeFilterCache.Get(typ).(Filter)
+}
+
+// Shortcut, same as `rf.GetTypeFilter(rf.DerefType(typ))`.
+func TypeFilterFor(typ interface{}) Filter {
+	return GetTypeFilter(DerefType(typ))
+}
+
+var typeFilterCache = Cache{Func: func(typ r.Type) interface{} { return TypeFilter{typ} }}
 
 // Implementation of `rf.Filter` that allows to visit only values of this
 // specific type.
@@ -184,8 +211,30 @@ func (self Not) ShouldVisit(typ r.Type, field r.StructField) bool {
 	return false
 }
 
-// Implementation of `rf.Filter` that combines other filters, allowing to visit
-// nodes for which at least one of the filters returns true.
+/*
+Optimization for `rf.Or`. If the input has NO non-nil filters, this returns
+nil, avoiding an allocation of `rf.Or`. If the input has ONE non-nil filter,
+this returns that filter, avoiding an allocation of `rf.Or{}`. Otherwise it
+combines the filters via `rf.Or`.
+*/
+func MaybeOr(vals ...Filter) Filter {
+	var out Or
+	slice := maybeCombineFilters(vals, out[:0])
+
+	switch len(slice) {
+	case 0:
+		return nil
+	case 1:
+		return slice[0]
+	default:
+		return out
+	}
+}
+
+/*
+Implementation of `rf.Filter` that combines other filters, allowing to visit
+nodes for which at least one of the filters returns true.
+*/
 type Or [8]Filter
 
 // Implement `rf.Filter`.
@@ -198,9 +247,31 @@ func (self Or) ShouldVisit(typ r.Type, field r.StructField) bool {
 	return false
 }
 
-// Implementation of `rf.Filter` that combines other filters, allowing to visit
-// nodes for which all non-nil filters return true, and at least one filter is
-// non-nil. If all filters are nil, this returns false.
+/*
+Optimization for `rf.And`. If the input has NO non-nil filters, this returns
+nil, avoiding an allocation of `rf.And`. If the input has ONE non-nil filter,
+this returns that filter, avoiding an allocation of `rf.And{}`. Otherwise it
+combines the filters via `rf.And`.
+*/
+func MaybeAnd(vals ...Filter) Filter {
+	var out And
+	slice := maybeCombineFilters(vals, out[:0])
+
+	switch len(slice) {
+	case 0:
+		return nil
+	case 1:
+		return slice[0]
+	default:
+		return out
+	}
+}
+
+/*
+Implementation of `rf.Filter` that combines other filters, allowing to visit
+nodes for which all non-nil filters return true, and at least one filter is
+non-nil. If all filters are nil, this returns false.
+*/
 type And [8]Filter
 
 // Implement `rf.Filter`.
@@ -251,10 +322,10 @@ func (self Appender) Visit(val r.Value, _ r.StructField) {
 	}
 }
 
-// Returns `rf.TypeFilter` that allows to visit only values suitable to be
-// elements of the slice held by the appender.
-func (self Appender) Filter() TypeFilter {
-	return TypeFilter{self[0].Type().Elem()}
+// Returns a filter that allows to visit only values suitable to be elements of
+// the slice held by the appender.
+func (self Appender) Filter() Filter {
+	return GetTypeFilter(self[0].Type().Elem())
 }
 
 // Shortcut for `self[0].Interface()` insulating the caller from implementation
