@@ -6,6 +6,10 @@ See the full documentation at https://pkg.go.dev/github.com/mitranim/rf.
 
 ## Changelog
 
+### v0.2.2
+
+Added `Fields` and `TypeFields` for micro-optimizing struct shallow walking.
+
 ### v0.2.1
 
 `Walk` / `GetWalker` now support walking into `interface{}` values, fetching the appropriate cached walker for the given type and filter on the fly.

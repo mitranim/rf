@@ -380,3 +380,20 @@ func CopyPath(src []int) []int {
 func IsEmbed(val r.StructField) bool {
 	return val.Anonymous && val.Type != nil && val.Type.Kind() == r.Struct
 }
+
+// Shortcut for `rf.TypeFields(rf.DerefType(typ))`.
+func Fields(typ interface{}) []r.StructField {
+	return TypeFields(DerefType(typ))
+}
+
+/*
+Takes a struct type and returns its fields, caching and reusing the resulting
+slice for all future calls for each type. The resulting slice or its elements
+must not be mutated.
+*/
+func TypeFields(typ r.Type) []r.StructField {
+	if typ == nil {
+		return nil
+	}
+	return typeFieldsCache.Get(TypeDeref(typ)).([]r.StructField)
+}

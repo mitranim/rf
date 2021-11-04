@@ -562,3 +562,51 @@ func TestMaybeAnd(t *testing.T) {
 	eq(t, And{Nop{}, True{}}, MaybeAnd(nil, Nop{}, nil, True{}))
 	eq(t, And{Nop{}, True{}, False{}}, MaybeAnd(nil, Nop{}, nil, True{}, nil, False{}))
 }
+
+func TestFields(t *testing.T) {
+	testFields(t, Fields)
+}
+
+func TestTypeFields(t *testing.T) {
+	testFields(t, func(typ interface{}) []r.StructField {
+		return TypeFields(r.TypeOf(typ))
+	})
+}
+
+func testFields(t testing.TB, fields func(interface{}) []r.StructField) {
+	eq(t, []r.StructField(nil), fields(nil))
+	eq(t, []r.StructField{}, fields(struct{}{}))
+	eq(t, []r.StructField{}, fields((*struct{})(nil)))
+
+	eq(
+		t,
+		[]r.StructField{
+			r.TypeOf(Inner{}).Field(0),
+			r.TypeOf(Inner{}).Field(1),
+		},
+		fields(Inner{}),
+	)
+
+	eq(
+		t,
+		[]r.StructField{
+			r.TypeOf(Inner{}).Field(0),
+			r.TypeOf(Inner{}).Field(1),
+		},
+		fields((*Inner)(nil)),
+	)
+
+	identical := func(typA, typB interface{}) {
+		t.Helper()
+
+		valA := fields(typA)
+		valB := fields(typB)
+
+		is(t, &valA[0], &valB[0])
+	}
+
+	identical((*Inner)(nil), (*Inner)(nil))
+	identical(Inner{}, (*Inner)(nil))
+	identical((*Inner)(nil), Inner{})
+	identical(Inner{}, Inner{})
+}

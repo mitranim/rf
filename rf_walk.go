@@ -179,8 +179,6 @@ func TypeFilterFor(typ interface{}) Filter {
 	return GetTypeFilter(DerefType(typ))
 }
 
-var typeFilterCache = Cache{Func: func(typ r.Type) interface{} { return TypeFilter{typ} }}
-
 // Implementation of `rf.Filter` that allows to visit only values of this
 // specific type.
 type TypeFilter [1]r.Type

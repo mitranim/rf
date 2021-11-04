@@ -302,3 +302,16 @@ func maybeCombineFilters(src, out []Filter) []Filter {
 	}
 	return out
 }
+
+var typeFilterCache = Cache{Func: func(typ r.Type) interface{} { return TypeFilter{typ} }}
+
+var typeFieldsCache = Cache{Func: func(typ r.Type) interface{} { return typeFields(typ) }}
+
+func typeFields(typ r.Type) []r.StructField {
+	typ = ValidateTypeStruct(typ)
+	out := make([]r.StructField, 0, typ.NumField())
+	for i := range Iter(typ.NumField()) {
+		out = append(out, typ.Field(i))
+	}
+	return out
+}
