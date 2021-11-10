@@ -6,6 +6,10 @@ See the full documentation at https://pkg.go.dev/github.com/mitranim/rf.
 
 ## Changelog
 
+### v0.3.1
+
+Quick breaking change: `IfaceFilter` visits either self or descendants, not both.
+
 ### v0.3.0
 
 More flexible `Filter` interface:

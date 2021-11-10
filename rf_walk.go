@@ -236,8 +236,9 @@ func (self TypeFilter) Visit(typ r.Type, _ r.StructField) byte {
 /*
 Implementation of `rf.Filter` that allows to visit values whose types implement
 the given interface BY POINTER. The inner type must be non-nil and represent an
-interface, otherwise this will panic. It also allows to visit descendants. The
-visitor must explicitly take value address:
+interface, otherwise this will panic. Unlike `rf.TypeFilter`, this visits
+either self or descendants, not both. The visitor must explicitly take value
+address:
 
 	func visit(val r.Value, _ r.StructField) {
 		val.Addr().Interface().(SomeInterface).SomeMethod()
@@ -248,7 +249,7 @@ type IfaceFilter [1]r.Type
 // Implement `rf.Filter`.
 func (self IfaceFilter) Visit(typ r.Type, _ r.StructField) byte {
 	if r.PtrTo(typ).Implements(self[0]) {
-		return VisBoth
+		return VisSelf
 	}
 	return VisDesc
 }
