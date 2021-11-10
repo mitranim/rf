@@ -370,10 +370,10 @@ func TestNormNil(t *testing.T) {
 	test(stringPtr(`one`), stringPtr(`one`))
 }
 
-func TestDerefLen(t *testing.T) {
+func TestLen(t *testing.T) {
 	test := func(exp int, val interface{}) {
 		t.Helper()
-		eq(t, exp, DerefLen(val))
+		eq(t, exp, Len(val))
 	}
 
 	test(0, nil)
@@ -446,31 +446,31 @@ func TestSliceType(t *testing.T) {
 }
 
 func TestTypeFilter(t *testing.T) {
-	test := func(exp bool, filTyp, visTyp interface{}) {
+	test := func(exp byte, filTyp, visTyp interface{}) {
 		t.Helper()
-		eq(t, exp, TypeFilter{r.TypeOf(filTyp)}.ShouldVisit(r.TypeOf(visTyp), r.StructField{}))
+		eq(t, exp, TypeFilter{r.TypeOf(filTyp)}.Visit(r.TypeOf(visTyp), r.StructField{}))
 	}
 
-	test(true, nil, nil)
-	test(true, ``, ``)
-	test(false, ``, nil)
-	test(false, nil, ``)
+	test(VisBoth, nil, nil)
+	test(VisBoth, ``, ``)
+	test(VisDesc, ``, nil)
+	test(VisDesc, nil, ``)
 }
 
 func TestTagFilter(t *testing.T) {
-	test := func(exp bool, key, val string, tag r.StructTag) {
+	test := func(exp byte, key, val string, tag r.StructTag) {
 		t.Helper()
-		eq(t, exp, TagFilter{key, val}.ShouldVisit(nil, r.StructField{Tag: tag}))
+		eq(t, exp, TagFilter{key, val}.Visit(nil, r.StructField{Tag: tag}))
 	}
 
-	test(false, ``, ``, ``)
-	test(false, ``, ``, `json:"one" db:"two"`)
-	test(false, `json`, ``, `json:"one" db:"two"`)
-	test(false, `db`, ``, `json:"one" db:"two"`)
-	test(false, `json`, `two`, `json:"one" db:"two"`)
-	test(false, `db`, `one`, `json:"one" db:"two"`)
-	test(true, `json`, `one`, `json:"one" db:"two"`)
-	test(true, `db`, `two`, `json:"one" db:"two"`)
+	test(VisDesc, ``, ``, ``)
+	test(VisDesc, ``, ``, `json:"one" db:"two"`)
+	test(VisDesc, `json`, ``, `json:"one" db:"two"`)
+	test(VisDesc, `db`, ``, `json:"one" db:"two"`)
+	test(VisDesc, `json`, `two`, `json:"one" db:"two"`)
+	test(VisDesc, `db`, `one`, `json:"one" db:"two"`)
+	test(VisBoth, `json`, `one`, `json:"one" db:"two"`)
+	test(VisBoth, `db`, `two`, `json:"one" db:"two"`)
 }
 
 func TestAppenderFor(t *testing.T) {
@@ -504,7 +504,7 @@ func TestAppender(t *testing.T) {
 func TestGetWalker_nil(t *testing.T) {
 	eq(t, nil, GetWalker(nil, nil))
 	eq(t, nil, GetWalker(r.TypeOf(``), nil))
-	eq(t, nil, GetWalker(nil, True{}))
+	eq(t, nil, GetWalker(nil, All{}))
 }
 
 func TestGetWalker_caching(t *testing.T) {
@@ -543,24 +543,6 @@ func Test_walking(t *testing.T) {
 			vis.Interface(),
 		)
 	}
-}
-
-func TestMaybeOr(t *testing.T) {
-	eq(t, nil, MaybeOr())
-	eq(t, nil, MaybeOr(nil, nil, nil))
-	eq(t, Nop{}, MaybeOr(Nop{}))
-	eq(t, Nop{}, MaybeOr(nil, Nop{}, nil))
-	eq(t, Or{Nop{}, True{}}, MaybeOr(nil, Nop{}, nil, True{}))
-	eq(t, Or{Nop{}, True{}, False{}}, MaybeOr(nil, Nop{}, nil, True{}, nil, False{}))
-}
-
-func TestMaybeAnd(t *testing.T) {
-	eq(t, nil, MaybeAnd())
-	eq(t, nil, MaybeAnd(nil, nil, nil))
-	eq(t, Nop{}, MaybeAnd(Nop{}))
-	eq(t, Nop{}, MaybeAnd(nil, Nop{}, nil))
-	eq(t, And{Nop{}, True{}}, MaybeAnd(nil, Nop{}, nil, True{}))
-	eq(t, And{Nop{}, True{}, False{}}, MaybeAnd(nil, Nop{}, nil, True{}, nil, False{}))
 }
 
 func TestFields(t *testing.T) {
@@ -609,4 +591,112 @@ func testFields(t testing.TB, fields func(interface{}) []r.StructField) {
 	identical(Inner{}, (*Inner)(nil))
 	identical((*Inner)(nil), Inner{})
 	identical(Inner{}, Inner{})
+}
+
+func TestInvertSelf(t *testing.T) {
+	test := func(exp byte, val InvertSelf) {
+		t.Helper()
+		eq(t, exp, val.Visit(nil, r.StructField{}))
+	}
+
+	test(0b_0000_0000, InvertSelf{})
+	test(0b_0000_0000, InvertSelf{Self{}})
+	test(0b_0000_0011, InvertSelf{Desc{}})
+	test(0b_1111_1110, InvertSelf{All{}})
+}
+
+func TestAnd(t *testing.T) {
+	test := func(exp0, exp1 byte, val And) {
+		t.Helper()
+		eq(t, exp0, exp1)
+		eq(t, exp0, val.Visit(nil, r.StructField{}))
+		eq(t, exp1, val.Visit(nil, r.StructField{}))
+	}
+
+	test(0b_0000_0000, VisNone, And{})
+
+	test(0b_1111_1111, VisAll, And{All{}})
+	test(0b_0000_0001, VisSelf, And{Self{}})
+	test(0b_0000_0010, VisDesc, And{Desc{}})
+	test(0b_0000_0011, VisBoth, And{Both{}})
+
+	test(0b_1111_1111, VisAll, And{All{}, All{}})
+	test(0b_0000_0011, VisBoth, And{Both{}, Both{}})
+
+	test(0b_0000_0001, VisSelf, And{All{}, Self{}})
+	test(0b_0000_0001, VisSelf, And{Self{}, All{}})
+
+	test(0b_0000_0001, VisSelf, And{Both{}, Self{}})
+	test(0b_0000_0001, VisSelf, And{Self{}, Both{}})
+
+	test(0b_0000_0010, VisDesc, And{All{}, Desc{}})
+	test(0b_0000_0010, VisDesc, And{Desc{}, All{}})
+
+	test(0b_0000_0010, VisDesc, And{Both{}, Desc{}})
+	test(0b_0000_0010, VisDesc, And{Desc{}, Both{}})
+
+	test(0b_0000_0000, VisNone, And{Self{}, Desc{}})
+	test(0b_0000_0000, VisNone, And{Desc{}, Self{}})
+}
+
+func TestMaybeAnd(t *testing.T) {
+	eq(t, nil, MaybeAnd())
+	eq(t, nil, MaybeAnd(nil))
+	eq(t, nil, MaybeAnd(nil, nil))
+	eq(t, nil, MaybeAnd(nil, nil, nil))
+	eq(t, Self{}, MaybeAnd(Self{}))
+	eq(t, Self{}, MaybeAnd(Self{}, nil))
+	eq(t, Self{}, MaybeAnd(nil, Self{}))
+	eq(t, Self{}, MaybeAnd(nil, Self{}, nil))
+	eq(t, Desc{}, MaybeAnd(nil, Desc{}, nil))
+	eq(t, And{Self{}, Desc{}}, MaybeAnd(Self{}, Desc{}))
+	eq(t, And{Self{}, Desc{}}, MaybeAnd(nil, Self{}, nil, Desc{}, nil))
+}
+
+func TestOr(t *testing.T) {
+	test := func(exp0, exp1 byte, val Or) {
+		t.Helper()
+		eq(t, exp0, exp1)
+		eq(t, exp0, val.Visit(nil, r.StructField{}))
+		eq(t, exp1, val.Visit(nil, r.StructField{}))
+	}
+
+	test(0b_0000_0000, VisNone, Or{})
+
+	test(0b_1111_1111, VisAll, Or{All{}})
+	test(0b_0000_0001, VisSelf, Or{Self{}})
+	test(0b_0000_0010, VisDesc, Or{Desc{}})
+	test(0b_0000_0011, VisBoth, Or{Both{}})
+
+	test(0b_1111_1111, VisAll, Or{All{}, All{}})
+	test(0b_0000_0011, VisBoth, Or{Both{}, Both{}})
+
+	test(0b_1111_1111, VisAll, Or{All{}, Self{}})
+	test(0b_1111_1111, VisAll, Or{Self{}, All{}})
+
+	test(0b_0000_0011, VisBoth, Or{Both{}, Self{}})
+	test(0b_0000_0011, VisBoth, Or{Self{}, Both{}})
+
+	test(0b_1111_1111, VisAll, Or{All{}, Desc{}})
+	test(0b_1111_1111, VisAll, Or{Desc{}, All{}})
+
+	test(0b_0000_0011, VisBoth, Or{Both{}, Desc{}})
+	test(0b_0000_0011, VisBoth, Or{Desc{}, Both{}})
+
+	test(0b_0000_0011, VisBoth, Or{Self{}, Desc{}})
+	test(0b_0000_0011, VisBoth, Or{Desc{}, Self{}})
+}
+
+func TestMaybeOr(t *testing.T) {
+	eq(t, nil, MaybeOr())
+	eq(t, nil, MaybeOr(nil))
+	eq(t, nil, MaybeOr(nil, nil))
+	eq(t, nil, MaybeOr(nil, nil, nil))
+	eq(t, Self{}, MaybeOr(Self{}))
+	eq(t, Self{}, MaybeOr(Self{}, nil))
+	eq(t, Self{}, MaybeOr(nil, Self{}))
+	eq(t, Self{}, MaybeOr(nil, Self{}, nil))
+	eq(t, Desc{}, MaybeOr(nil, Desc{}, nil))
+	eq(t, Or{Self{}, Desc{}}, MaybeOr(Self{}, Desc{}))
+	eq(t, Or{Self{}, Desc{}}, MaybeOr(nil, Self{}, nil, Desc{}, nil))
 }

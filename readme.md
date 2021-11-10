@@ -6,6 +6,24 @@ See the full documentation at https://pkg.go.dev/github.com/mitranim/rf.
 
 ## Changelog
 
+### v0.3.0
+
+More flexible `Filter` interface:
+
+  * Previous approach: filter returns `bool` answering "should visit this node". 2 possible states. Implicitly walks descendants.
+
+  * New approach: filter returns flagset where "should visit this node" and "should walk descendants" are both optional flags. 4 possible states. Walking descendants is now optional.
+
+Renamed `Filter.ShouldVisit` to `Filter.Visit` because it's no longer a boolean. This makes it impossible to implement `Filter` and `Walker` on the same type, which is probably a good thing due to filter equality rules.
+
+`Nop` no longer implements `Filter`.
+
+Replaced `True` and `False` with `Self`, `Desc`, `Both`, `All`.
+
+Replaced `Not` with `InvertSelf`.
+
+Renamed `DerefLen` to `Len`.
+
 ### v0.2.2
 
 Added `Fields` and `TypeFields` for micro-optimizing struct shallow walking.

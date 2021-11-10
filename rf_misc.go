@@ -331,7 +331,7 @@ func NormNil(val interface{}) interface{} {
 Shortcut for `rf.ValueLen(rf.DerefValue(val))`. Returns the length of the given
 value, if possible. If not, returns 0. Automatically dereferences the input.
 */
-func DerefLen(val interface{}) int {
+func Len(val interface{}) int {
 	return ValueLen(DerefValue(val))
 }
 

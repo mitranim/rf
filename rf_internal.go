@@ -9,10 +9,18 @@ import (
 var (
 	walkerCacheStatic walkerCache
 
-	typeEmptyIface = r.TypeOf((*interface{})(nil)).Elem()
-	typeFilter     = r.TypeOf((*Filter)(nil)).Elem()
-	typeType       = r.TypeOf((*r.Type)(nil)).Elem()
+	typeFilter = r.TypeOf((*Filter)(nil)).Elem()
+	typeType   = r.TypeOf((*r.Type)(nil)).Elem()
 )
+
+/*
+Return value of `Filter.Visit`. Private, to avoid putting a concrete library
+type into an interface.
+*/
+type vis byte
+
+func (self vis) self() bool { return (self & VisSelf) != 0 }
+func (self vis) desc() bool { return (self & VisDesc) != 0 }
 
 type walkey struct {
 	Type   r.Type
@@ -160,42 +168,54 @@ func makeWalker(typ, parent r.Type, field r.StructField, fil Filter) Walker {
 		return makeStructWalker(typ, parent, field, fil)
 
 	case r.Interface:
-		if typ == typeEmptyIface {
-			return makeIfaceWalker(typ, parent, field, fil)
-		}
-		return makeLeafWalker(typ, parent, field, fil)
+		return makeIfaceWalker(typ, parent, field, fil)
 
 	default:
-		return makeLeafWalker(typ, parent, field, fil)
+		return makeLeafWalker(typ, parent, field, vis(fil.Visit(typ, field)))
 	}
 }
 
 func makePtrWalker(typ, parent r.Type, field r.StructField, fil Filter) Walker {
-	inner := walkerCacheStatic.get(typ.Elem(), parent, field, fil)
-	if inner != nil {
-		return makeNodeWalker(typ, parent, field, fil, ptrWalker{inner})
+	vis := vis(fil.Visit(typ, field))
+
+	if vis.desc() {
+		inner := walkerCacheStatic.get(typ.Elem(), parent, field, fil)
+		if inner != nil {
+			return makeNodeWalker(typ, parent, field, vis, ptrWalker{inner})
+		}
 	}
-	return makeLeafWalker(typ, parent, field, fil)
+
+	return makeLeafWalker(typ, parent, field, vis)
 }
 
 func makeListWalker(typ, parent r.Type, field r.StructField, fil Filter) Walker {
-	inner := walkerCacheStatic.get(typ.Elem(), parent, field, fil)
-	if inner != nil {
-		return makeNodeWalker(typ, parent, field, fil, listWalker{inner})
+	vis := vis(fil.Visit(typ, field))
+
+	if vis.desc() {
+		inner := walkerCacheStatic.get(typ.Elem(), parent, field, fil)
+		if inner != nil {
+			return makeNodeWalker(typ, parent, field, vis, listWalker{inner})
+		}
 	}
-	return makeLeafWalker(typ, parent, field, fil)
+
+	return makeLeafWalker(typ, parent, field, vis)
 }
 
 func makeStructWalker(typ, parent r.Type, field r.StructField, fil Filter) Walker {
-	var walkers structWalker
-	for i := range Iter(typ.NumField()) {
-		walkers = maybeAppendIndexWalker(walkers, typ, i, fil)
+	vis := vis(fil.Visit(typ, field))
+
+	if vis.desc() {
+		var walkers structWalker
+		for i := range Iter(typ.NumField()) {
+			walkers = maybeAppendIndexWalker(walkers, typ, i, fil)
+		}
+
+		if len(walkers) > 0 {
+			return makeNodeWalker(typ, parent, field, vis, walkers)
+		}
 	}
 
-	if len(walkers) > 0 {
-		return makeNodeWalker(typ, parent, field, fil, walkers)
-	}
-	return makeLeafWalker(typ, parent, field, fil)
+	return makeLeafWalker(typ, parent, field, vis)
 }
 
 func maybeAppendIndexWalker(out structWalker, typ r.Type, index int, fil Filter) structWalker {
@@ -208,11 +228,24 @@ func maybeAppendIndexWalker(out structWalker, typ r.Type, index int, fil Filter)
 }
 
 func makeIfaceWalker(typ, parent r.Type, field r.StructField, fil Filter) Walker {
-	return makeNodeWalker(typ, parent, field, fil, ifaceWalker{parent, field, fil})
+	vis := vis(fil.Visit(typ, field))
+	if vis.desc() {
+		return makeNodeWalker(typ, parent, field, vis, ifaceWalker{parent, field, fil})
+	}
+	return makeLeafWalker(typ, parent, field, vis)
 }
 
-func makeNodeWalker(typ, parent r.Type, field r.StructField, fil Filter, inner Walker) Walker {
-	if fil.ShouldVisit(typ, field) {
+func makeNodeWalker(typ, parent r.Type, field r.StructField, vis vis, inner Walker) Walker {
+	if inner == nil {
+		panic(Err{
+			`making node walker`,
+			fmt.Errorf(
+				`internal violation: attempted to construct useless node walker without inner walker`,
+			),
+		})
+	}
+
+	if vis.self() {
 		if isFieldValid(field) {
 			return selfFieldWalker{field, inner}
 		}
@@ -221,8 +254,8 @@ func makeNodeWalker(typ, parent r.Type, field r.StructField, fil Filter, inner W
 	return inner
 }
 
-func makeLeafWalker(typ, parent r.Type, field r.StructField, fil Filter) Walker {
-	if fil.ShouldVisit(typ, field) {
+func makeLeafWalker(typ, parent r.Type, field r.StructField, vis vis) Walker {
+	if vis.self() {
 		if isFieldValid(field) {
 			return leafFieldWalker(field)
 		}
@@ -302,8 +335,6 @@ func maybeCombineFilters(src, out []Filter) []Filter {
 	}
 	return out
 }
-
-var typeFilterCache = Cache{Func: func(typ r.Type) interface{} { return TypeFilter{typ} }}
 
 var typeFieldsCache = Cache{Func: func(typ r.Type) interface{} { return typeFields(typ) }}
 

@@ -14,7 +14,7 @@ func BenchmarkGetWalker(b *testing.B) {
 }
 
 func benchGetWalker() {
-	GetWalker(r.TypeOf(&testOuter), True{})
+	GetWalker(r.TypeOf(&testOuter), All{})
 }
 
 func BenchmarkWalk(b *testing.B) {
@@ -24,7 +24,7 @@ func BenchmarkWalk(b *testing.B) {
 }
 
 func benchWalk() {
-	Walk(r.ValueOf(&testOuter), True{}, Nop{})
+	Walk(r.ValueOf(&testOuter), All{}, Nop{})
 }
 
 func Benchmark_range_slice_values(b *testing.B) {
@@ -86,19 +86,19 @@ var filterNop = func(Filter) {}
 
 func BenchmarkMaybeAndEmpty(b *testing.B) {
 	for range Iter(b.N) {
-		filterNop(MaybeAnd(nil, nil, nil))
+		filterNop(MaybeAnd(nil, nil))
 	}
 }
 
 func BenchmarkMaybeAndUnary(b *testing.B) {
 	for range Iter(b.N) {
-		filterNop(MaybeAnd(nil, Nop{}, nil))
+		filterNop(MaybeAnd(nil, All{}))
 	}
 }
 
 func BenchmarkMaybeAndMulti(b *testing.B) {
 	for range Iter(b.N) {
-		filterNop(MaybeAnd(nil, Nop{}, nil, True{}, nil, False{}))
+		filterNop(MaybeAnd(Self{}, Desc{}))
 	}
 }
 
@@ -110,7 +110,7 @@ func BenchmarkAndEmpty(b *testing.B) {
 
 func BenchmarkAndMulti(b *testing.B) {
 	for range Iter(b.N) {
-		filterNop(And{nil, Nop{}, nil, True{}, nil, False{}})
+		filterNop(And{Self{}, Desc{}})
 	}
 }
 
