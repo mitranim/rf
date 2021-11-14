@@ -220,13 +220,16 @@ func TypeFilterFor(typ interface{}) Filter {
 
 /*
 Implementation of `rf.Filter` that allows to visit values of this specific type.
-The type may be either concrete or an interface. In all cases, it also allows
-to visit descendants.
+If the type is nil, this won't visit anything. The type may be either concrete
+or an interface. It also allows to visit descendants.
 */
 type TypeFilter [1]r.Type
 
 // Implement `rf.Filter`.
 func (self TypeFilter) Visit(typ r.Type, _ r.StructField) byte {
+	if self[0] == nil {
+		return VisNone
+	}
 	if self[0] == typ {
 		return VisBoth
 	}
@@ -235,10 +238,9 @@ func (self TypeFilter) Visit(typ r.Type, _ r.StructField) byte {
 
 /*
 Implementation of `rf.Filter` that allows to visit values whose types implement
-the given interface BY POINTER. The inner type must be non-nil and represent an
-interface, otherwise this will panic. Unlike `rf.TypeFilter`, this visits
-either self or descendants, not both. The visitor must explicitly take value
-address:
+the given interface BY POINTER. If the type is nil, this won't visit anything.
+The type must represent an interface, otherwise this will panic. The visitor
+must explicitly take value address:
 
 	func visit(val r.Value, _ r.StructField) {
 		val.Addr().Interface().(SomeInterface).SomeMethod()
@@ -248,10 +250,19 @@ type IfaceFilter [1]r.Type
 
 // Implement `rf.Filter`.
 func (self IfaceFilter) Visit(typ r.Type, _ r.StructField) byte {
-	if r.PtrTo(typ).Implements(self[0]) {
-		return VisSelf
-	}
-	return VisDesc
+	return ifaceVisit(typ, self[0], VisBoth)
+}
+
+/*
+Like `IfaceFilter`, but visits either self or descendants, not both. In other
+words, once it finds a node that implements the given interface (by pointer),
+it allows to visit that node and stops there, without walking its descendants.
+*/
+type ShallowIfaceFilter [1]r.Type
+
+// Implement `rf.Filter`.
+func (self ShallowIfaceFilter) Visit(typ r.Type, _ r.StructField) byte {
+	return ifaceVisit(typ, self[0], VisSelf)
 }
 
 /*

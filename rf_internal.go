@@ -346,3 +346,13 @@ func typeFields(typ r.Type) []r.StructField {
 	}
 	return out
 }
+
+func ifaceVisit(visTyp, ifaceTyp r.Type, hit byte) byte {
+	if visTyp == nil || ifaceTyp == nil {
+		return VisNone
+	}
+	if r.PtrTo(visTyp).Implements(ifaceTyp) {
+		return hit
+	}
+	return VisDesc
+}

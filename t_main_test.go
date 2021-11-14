@@ -84,6 +84,12 @@ actual (simple):
 func is(t testing.TB, exp, act interface{}) {
 	t.Helper()
 
+	// nolint:structcheck
+	type iface struct {
+		typ unsafe.Pointer
+		dat unsafe.Pointer
+	}
+
 	expIface := *(*iface)(unsafe.Pointer(&exp))
 	actIface := *(*iface)(unsafe.Pointer(&act))
 
@@ -103,12 +109,6 @@ actual (simple):
 	%[4]v
 `, expIface, actIface, exp, act)
 	}
-}
-
-// nolint:structcheck
-type iface struct {
-	typ unsafe.Pointer
-	dat unsafe.Pointer
 }
 
 func stringPtr(val string) *string { return &val }

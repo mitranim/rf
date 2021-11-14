@@ -1,6 +1,7 @@
 package rf
 
 import (
+	"fmt"
 	r "reflect"
 	"testing"
 	"time"
@@ -446,15 +447,25 @@ func TestSliceType(t *testing.T) {
 }
 
 func TestTypeFilter(t *testing.T) {
-	test := func(exp byte, filTyp, visTyp interface{}) {
+	test := func(exp byte, visTyp, filTyp interface{}) {
 		t.Helper()
-		eq(t, exp, TypeFilter{r.TypeOf(filTyp)}.Visit(r.TypeOf(visTyp), r.StructField{}))
+
+		eq(
+			t,
+			exp,
+			TypeFilter{r.TypeOf(filTyp)}.Visit(r.TypeOf(visTyp), r.StructField{}),
+		)
 	}
 
-	test(VisBoth, nil, nil)
-	test(VisBoth, ``, ``)
-	test(VisDesc, ``, nil)
-	test(VisDesc, nil, ``)
+	test(VisNone, nil, nil)
+	test(VisBoth, string(``), string(``))
+	test(VisBoth, int(0), int(0))
+	test(VisDesc, string(``), int(0))
+	test(VisDesc, int(0), string(``))
+	test(VisDesc, nil, string(``))
+	test(VisDesc, nil, int(0))
+	test(VisNone, string(``), nil)
+	test(VisNone, int(0), nil)
 }
 
 func TestTagFilter(t *testing.T) {
@@ -471,6 +482,52 @@ func TestTagFilter(t *testing.T) {
 	test(VisDesc, `db`, `one`, `json:"one" db:"two"`)
 	test(VisBoth, `json`, `one`, `json:"one" db:"two"`)
 	test(VisBoth, `db`, `two`, `json:"one" db:"two"`)
+}
+
+func TestIfaceFilter(t *testing.T) {
+	test := func(exp byte, visTyp, ifaceTyp interface{}) {
+		t.Helper()
+
+		eq(
+			t,
+			exp,
+			IfaceFilter{DerefType(ifaceTyp)}.Visit(r.TypeOf(visTyp), r.StructField{}),
+		)
+	}
+
+	test(VisNone, nil, nil)
+	test(VisNone, time.Time{}, nil)
+	test(VisNone, string(``), nil)
+	test(VisNone, int(0), nil)
+	test(VisNone, nil, (*fmt.Stringer)(nil))
+
+	test(VisBoth, time.Time{}, (*fmt.Stringer)(nil))
+	test(VisDesc, (*time.Time)(nil), (*fmt.Stringer)(nil))
+	test(VisDesc, string(``), (*fmt.Stringer)(nil))
+	test(VisDesc, int(0), (*fmt.Stringer)(nil))
+}
+
+func TestShallowIfaceFilter(t *testing.T) {
+	test := func(exp byte, visTyp, ifaceTyp interface{}) {
+		t.Helper()
+
+		eq(
+			t,
+			exp,
+			ShallowIfaceFilter{DerefType(ifaceTyp)}.Visit(r.TypeOf(visTyp), r.StructField{}),
+		)
+	}
+
+	test(VisNone, nil, nil)
+	test(VisNone, time.Time{}, nil)
+	test(VisNone, string(``), nil)
+	test(VisNone, int(0), nil)
+	test(VisNone, nil, (*fmt.Stringer)(nil))
+
+	test(VisSelf, time.Time{}, (*fmt.Stringer)(nil))
+	test(VisDesc, (*time.Time)(nil), (*fmt.Stringer)(nil))
+	test(VisDesc, string(``), (*fmt.Stringer)(nil))
+	test(VisDesc, int(0), (*fmt.Stringer)(nil))
 }
 
 func TestAppenderFor(t *testing.T) {
