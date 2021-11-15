@@ -213,8 +213,8 @@ type All struct{}
 // Implement `rf.Filter`.
 func (All) Visit(r.Type, r.StructField) byte { return VisAll }
 
-// Shortcut, same as `rf.GetTypeFilter(rf.DerefType(typ))`.
-func TypeFilterFor(typ interface{}) Filter {
+// Shortcut, same as `rf.TypeFilter{rf.DerefType(typ)}`.
+func TypeFilterFor(typ interface{}) TypeFilter {
 	return TypeFilter{DerefType(typ)}
 }
 
@@ -236,6 +236,11 @@ func (self TypeFilter) Visit(typ r.Type, _ r.StructField) byte {
 	return VisDesc
 }
 
+// Shortcut, same as `rf.IfaceFilter{rf.DerefType(typ)}`.
+func IfaceFilterFor(typ interface{}) IfaceFilter {
+	return IfaceFilter{DerefType(typ)}
+}
+
 /*
 Implementation of `rf.Filter` that allows to visit values whose types implement
 the given interface BY POINTER. If the type is nil, this won't visit anything.
@@ -251,6 +256,11 @@ type IfaceFilter [1]r.Type
 // Implement `rf.Filter`.
 func (self IfaceFilter) Visit(typ r.Type, _ r.StructField) byte {
 	return ifaceVisit(typ, self[0], VisBoth)
+}
+
+// Shortcut, same as `rf.ShallowIfaceFilter{rf.DerefType(typ)}`.
+func ShallowIfaceFilterFor(typ interface{}) ShallowIfaceFilter {
+	return ShallowIfaceFilter{DerefType(typ)}
 }
 
 /*

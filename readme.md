@@ -6,6 +6,10 @@ See the full documentation at https://pkg.go.dev/github.com/mitranim/rf.
 
 ## Changelog
 
+### v0.3.3
+
+Add `IfaceFilterFor`, `ShallowIfaceFilterFor`.
+
 ### v0.3.2
 
 Reverted breaking change in `v0.3.1`: `IfaceFilter` once again allows to visit descendants. Added `ShallowIfaceFilter` that doesn't visit descendants of a matching node.
