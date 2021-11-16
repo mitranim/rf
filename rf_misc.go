@@ -98,7 +98,7 @@ Shortcut for `rf.ValueDeref(reflect.ValueOf(val))`. Returns the `reflect.Value`
 of the input, automatically dereferencing any outer pointers. If any outer
 pointers are nil, returns `reflect.Value{}`.
 */
-func DerefValue(val interface{}) r.Value {
+func Deref(val interface{}) r.Value {
 	return ValueDeref(r.ValueOf(val))
 }
 
@@ -115,6 +115,33 @@ func ValueDeref(val r.Value) r.Value {
 		val = val.Elem()
 	}
 	return val
+}
+
+/*
+If the value represents a non-pointer and its address can be taken, returns its
+address via `reflect.Value.Addr`. Otherwise returns the value as-is. Sometimes
+handy when taking an address is an optional optimization, such as before
+calling `reflect.Value.Interface`.
+*/
+func ValueAddr(val r.Value) r.Value {
+	if val.Kind() != r.Ptr && val.CanAddr() {
+		return val.Addr()
+	}
+	return val
+}
+
+/*
+Like `reflect.Value.Interface`, but returns nil when value is invalid, and
+attempts to take an address by calling `rf.ValueAddr`, which is sometimes more
+efficient. Calling `reflect.Value.Interface` on a non-address makes a heap copy
+of the underlying value, while indirection can avoid that cost.
+*/
+func Interface(val r.Value) interface{} {
+	val = ValueAddr(val)
+	if val.CanInterface() {
+		return val.Interface()
+	}
+	return nil
 }
 
 /*
@@ -328,11 +355,11 @@ func NormNil(val interface{}) interface{} {
 }
 
 /*
-Shortcut for `rf.ValueLen(rf.DerefValue(val))`. Returns the length of the given
+Shortcut for `rf.ValueLen(rf.Deref(val))`. Returns the length of the given
 value, if possible. If not, returns 0. Automatically dereferences the input.
 */
 func Len(val interface{}) int {
-	return ValueLen(DerefValue(val))
+	return ValueLen(Deref(val))
 }
 
 /*
@@ -360,21 +387,6 @@ func SliceType(val interface{}) r.Type {
 	return r.SliceOf(DerefType(val))
 }
 
-/*
-Shortcut for copying struct field paths, suitable for
-`reflect.StructField.Index`. Such copying is required when walking a struct
-type to build a collection of fields for later use (such representations should
-also be cached via `rf.Cache`).
-*/
-func CopyPath(src []int) []int {
-	if src == nil {
-		return nil
-	}
-	out := make([]int, len(src))
-	copy(out, src)
-	return out
-}
-
 // True if the given field represents an embedded non-pointer struct type. False
 // if it's embedded by pointer.
 func IsEmbed(val r.StructField) bool {
@@ -387,9 +399,11 @@ func Fields(typ interface{}) []r.StructField {
 }
 
 /*
-Takes a struct type and returns its fields, caching and reusing the resulting
-slice for all future calls for each type. The resulting slice or its elements
-must not be mutated.
+Takes a struct type and returns a shallow slice of its fields, similar to what
+you would get by iterating over `reflect.Type.NumField`. For any given type,
+caches and reuses the resulting slice for all future calls. The resulting slice
+or its elements must not be mutated. Note: because this doesn't support
+embedded structs, for most use cases `rf.TypeDeepFields` is more appropriate.
 */
 func TypeFields(typ r.Type) []r.StructField {
 	if typ == nil {
@@ -397,3 +411,117 @@ func TypeFields(typ r.Type) []r.StructField {
 	}
 	return typeFieldsCache.Get(TypeDeref(typ)).([]r.StructField)
 }
+
+// Shortcut for `rf.TypeDeepFields(rf.DerefType(typ))`.
+func DeepFields(typ interface{}) []r.StructField {
+	return TypeDeepFields(DerefType(typ))
+}
+
+/*
+Takes a struct type and returns a slice of its fields, with support for embedded
+structs. Structs embedded by value (not by pointer) are considered parts of the
+enclosing struct, rather than fields in their own right, and their fields are
+included into this function's output. This is NOT equivalent to the fields you
+would get by iterating over `reflect.Type.NumField`. Not only because it
+includes the fields of value-embedded structs, but also because it adjusts
+`reflect.StructField.Index` and `reflect.StructField.Offset` specifically for
+the given ancestor type. In particular, `reflect.StructField.Offset` of
+deeply-nested fields is exactly equivalent to the output of `unsafe.Offsetof`
+for the same parent type and field, which is NOT what you would normally get
+from the "reflect" package.
+
+For comparison. Normally when using `reflect.Type.FieldByIndex`, the returned
+fields have both their offset and their index relative to their most immediate
+parent, rather than the given ancestor. But it's also inconsistent. When using
+`reflect.Type.FieldByName`, the returned fields have their index relative to
+the ancestor, but their offset is still relative to their most immediate
+parent.
+
+This function actually fixes all that. It gives you fields where offsets AND
+indexes are all relative to the ancestor.
+
+Like `rf.TypeFields`, this caches and reuses the resulting slice for all future
+calls for any given type. The resulting slice or its elements must not be
+mutated.
+*/
+func TypeDeepFields(typ r.Type) []r.StructField {
+	if typ == nil {
+		return nil
+	}
+	return typeDeepFieldsCache.Get(TypeDeref(typ)).([]r.StructField)
+}
+
+// Shortcut for `rf.TypeOffsetFields(rf.DerefType(typ))`.
+func OffsetFields(typ interface{}) map[uintptr][]r.StructField {
+	return TypeOffsetFields(DerefType(typ))
+}
+
+/*
+Takes a struct type and returns a mapping of field offsets to fields. Offsets
+correspond to `unsafe.Offsetof`. The map is built from `rf.TypeDeepFields`,
+which treats structs embedded by value (not by pointer) as parts of the
+enclosing struct, including their fields into the output, and adjusts field
+offsets for compatibility with `unsafe.Offsetof`. Offsets may correspond to
+multiple fields because fields may be zero-sized. Each included slice has at
+least one field. Caches and reuses the resulting map for all future calls for
+any given type. The map or anything contained within must not be mutated.
+*/
+func TypeOffsetFields(typ r.Type) map[uintptr][]r.StructField {
+	if typ == nil {
+		return nil
+	}
+	return typeOffsetFieldsCache.Get(TypeDeref(typ)).(map[uintptr][]r.StructField)
+}
+
+/*
+Alias of `[]int` (which is used for struct field paths such as
+`reflect.StructField.Index`) with some shortcuts relevant for efficient and
+correct walking of struct types.
+*/
+type Path []int
+
+/*
+Returns a copy whose length and capacity are equal to the length of the
+original. Such copying is required when walking a struct type to build a
+collection of fields for later use (such representations should also be cached
+via `rf.Cache`).
+*/
+func (self Path) Copy() Path {
+	if self == nil {
+		return nil
+	}
+	out := make(Path, len(self))
+	copy(out, self)
+	return out
+}
+
+/*
+Appends elements to the path, returning a stack-allocatable value that can
+revert the path to the previous length by reslicing, keeping any capacity that
+was added by the append. Usage:
+
+	defer path.Add(field.Index).Reset()
+*/
+func (self *Path) Add(vals []int) Rev {
+	len := len(*self)
+	*self = append(*self, vals...)
+	return Rev{self, len}
+}
+
+/*
+Returned by `(*rf.Path).Add`. Syntactic shortcut for appending to a path for the
+duration of a function, reverting it back at the end. Should be transient,
+stack-allocated, and basically free to use.
+*/
+type Rev struct {
+	Path *Path
+	Len  int
+}
+
+/*
+Reslices `self.Path`, resetting its length to `self.Len` while keeping the
+capacity. Usage:
+
+	defer path.Add(field.Index).Reset()
+*/
+func (self Rev) Reset() { *self.Path = (*self.Path)[:self.Len] }

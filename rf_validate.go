@@ -271,23 +271,23 @@ of arbitrarily-nested pointer types) contains a type of the provided kind, and
 returns its dereferenced value. If any intermediary pointer is nil, the
 returned value is invalid.
 */
-func DerefValueWithKind(src interface{}, kind r.Kind) r.Value {
+func DerefWithKind(src interface{}, kind r.Kind) r.Value {
 	val := r.ValueOf(src)
 	ValidateTypeKind(TypeDeref(ValueType(val)), kind)
 	return ValueDeref(val)
 }
 
-// Shortcut for `rf.DerefValueWithKind(val, reflect.Func)`.
-func DerefFunc(val interface{}) r.Value { return DerefValueWithKind(val, r.Func) }
+// Shortcut for `rf.DerefWithKind(val, reflect.Func)`.
+func DerefFunc(val interface{}) r.Value { return DerefWithKind(val, r.Func) }
 
-// Shortcut for `rf.DerefValueWithKind(val, reflect.Map)`.
-func DerefMap(val interface{}) r.Value { return DerefValueWithKind(val, r.Map) }
+// Shortcut for `rf.DerefWithKind(val, reflect.Map)`.
+func DerefMap(val interface{}) r.Value { return DerefWithKind(val, r.Map) }
 
-// Shortcut for `rf.DerefValueWithKind(val, reflect.Slice)`.
-func DerefSlice(val interface{}) r.Value { return DerefValueWithKind(val, r.Slice) }
+// Shortcut for `rf.DerefWithKind(val, reflect.Slice)`.
+func DerefSlice(val interface{}) r.Value { return DerefWithKind(val, r.Slice) }
 
-// Shortcut for `rf.DerefValueWithKind(val, reflect.Struct)`.
-func DerefStruct(val interface{}) r.Value { return DerefValueWithKind(val, r.Struct) }
+// Shortcut for `rf.DerefWithKind(val, reflect.Struct)`.
+func DerefStruct(val interface{}) r.Value { return DerefWithKind(val, r.Struct) }
 
-// Shortcut for `rf.DerefValueWithKind(val, reflect.Ptr)`.
-func DerefPtr(val interface{}) r.Value { return DerefValueWithKind(val, r.Ptr) }
+// Shortcut for `rf.DerefWithKind(val, reflect.Ptr)`.
+func DerefPtr(val interface{}) r.Value { return DerefWithKind(val, r.Ptr) }

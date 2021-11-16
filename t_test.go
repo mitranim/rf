@@ -5,6 +5,7 @@ import (
 	r "reflect"
 	"testing"
 	"time"
+	u "unsafe"
 )
 
 func TestKind(t *testing.T) {
@@ -51,14 +52,14 @@ func TestTypeDeref(t *testing.T) {
 	eq(t, r.TypeOf([]*string(nil)), TypeDeref(r.TypeOf((**[]*string)(nil))))
 }
 
-func TestDerefValue(t *testing.T) {
-	eq(t, r.Value{}, DerefValue(nil))
-	eq(t, r.Value{}, DerefValue((*string)(nil)))
-	eq(t, r.Value{}, DerefValue((*[]string)(nil)))
+func TestDeref(t *testing.T) {
+	eq(t, r.Value{}, Deref(nil))
+	eq(t, r.Value{}, Deref((*string)(nil)))
+	eq(t, r.Value{}, Deref((*[]string)(nil)))
 
 	test := func(exp, src interface{}) {
 		t.Helper()
-		eq(t, r.ValueOf(exp).Interface(), DerefValue(src).Interface())
+		eq(t, r.ValueOf(exp).Interface(), Deref(src).Interface())
 	}
 
 	test(``, ``)
@@ -602,6 +603,23 @@ func Test_walking(t *testing.T) {
 	}
 }
 
+func TestIsEmbed(t *testing.T) {
+	test := func(exp bool, name string) {
+		t.Helper()
+		field, ok := r.TypeOf(Outer{}).FieldByName(name)
+		eq(t, true, ok)
+		eq(t, exp, IsEmbed(field))
+	}
+
+	test(true, `Embed`)
+	test(false, `EmbedPtr`)
+	test(false, `OuterStr`)
+	test(false, `Inner`)
+	test(false, `InnerPtr`)
+	test(false, `OuterIface`)
+	test(false, `OuterDict`)
+}
+
 func TestFields(t *testing.T) {
 	testFields(t, Fields)
 }
@@ -612,10 +630,107 @@ func TestTypeFields(t *testing.T) {
 	})
 }
 
-func testFields(t testing.TB, fields func(interface{}) []r.StructField) {
-	eq(t, []r.StructField(nil), fields(nil))
-	eq(t, []r.StructField{}, fields(struct{}{}))
-	eq(t, []r.StructField{}, fields((*struct{})(nil)))
+func testFields(t *testing.T, get func(interface{}) []r.StructField) {
+	t.Run(`caching`, func(t *testing.T) {
+		testFieldsCaching(t, get)
+	})
+
+	t.Run(`shallow`, func(t *testing.T) {
+		testFieldsShallow(t, get)
+	})
+
+	t.Run(`don't walk embedded`, func(t *testing.T) {
+		eq(
+			t,
+			[]r.StructField{
+				r.TypeOf(Outer{}).Field(0),
+				r.TypeOf(Outer{}).Field(1),
+				r.TypeOf(Outer{}).Field(2),
+				r.TypeOf(Outer{}).Field(3),
+				r.TypeOf(Outer{}).Field(4),
+				r.TypeOf(Outer{}).Field(5),
+				r.TypeOf(Outer{}).Field(6),
+			},
+			get((*Outer)(nil)),
+		)
+	})
+}
+
+func TestDeepFields(t *testing.T) {
+	testDeepFields(t, DeepFields)
+}
+
+func TestTypeDeepFields(t *testing.T) {
+	testDeepFields(t, func(typ interface{}) []r.StructField {
+		return TypeDeepFields(r.TypeOf(typ))
+	})
+}
+
+func testDeepFields(t *testing.T, get func(interface{}) []r.StructField) {
+	t.Run(`caching`, func(t *testing.T) {
+		testFieldsCaching(t, get)
+	})
+
+	t.Run(`shallow`, func(t *testing.T) {
+		testFieldsShallow(t, get)
+	})
+
+	t.Run(`embed by value`, func(t *testing.T) {
+		eq(
+			t,
+			[]r.StructField{
+				{
+					Name:      `One`,
+					Type:      r.TypeOf(string(``)),
+					Anonymous: false,
+					Offset:    0,
+					Index:     []int{0},
+				},
+				{
+					Name:      `EmbedStr`,
+					Type:      r.TypeOf(string(``)),
+					Anonymous: false,
+					Offset:    u.Sizeof(string(``)),
+					Tag:       `json:"embedStr" db:"embed_str"`,
+					Index:     []int{1, 0},
+				},
+				{
+					Name:      `EmbedNum`,
+					Type:      r.TypeOf(int(0)),
+					Anonymous: false,
+					Offset:    u.Sizeof(string(``)) + u.Sizeof(string(``)),
+					Tag:       `json:"embedNum" db:"embed_num"`,
+					Index:     []int{1, 1},
+				},
+				{
+					Name:      `Inner`,
+					Type:      r.TypeOf((*Inner)(nil)),
+					Anonymous: true,
+					Offset:    u.Sizeof(string(``)) + u.Sizeof(string(``)) + u.Sizeof(int(0)),
+					Index:     []int{2},
+				},
+				{
+					Name:      `Two`,
+					Type:      r.TypeOf(int(0)),
+					Anonymous: false,
+					Offset:    u.Sizeof(string(``)) + u.Sizeof(string(``)) + u.Sizeof(int(0)) + u.Sizeof((*Inner)(nil)),
+					Index:     []int{3},
+				},
+			},
+			get(struct {
+				One string
+				Embed
+				*Inner
+				Two int
+			}{}),
+		)
+	})
+}
+
+func testFieldsShallow(t *testing.T, get func(interface{}) []r.StructField) {
+	eq(t, []r.StructField(nil), get(nil))
+	eq(t, []r.StructField{}, get(struct{}{}))
+	eq(t, []r.StructField{}, get((*struct{})(nil)))
 
 	eq(
 		t,
@@ -623,7 +738,7 @@ func testFields(t testing.TB, fields func(interface{}) []r.StructField) {
 			r.TypeOf(Inner{}).Field(0),
 			r.TypeOf(Inner{}).Field(1),
 		},
-		fields(Inner{}),
+		get(Inner{}),
 	)
 
 	eq(
@@ -632,22 +747,264 @@ func testFields(t testing.TB, fields func(interface{}) []r.StructField) {
 			r.TypeOf(Inner{}).Field(0),
 			r.TypeOf(Inner{}).Field(1),
 		},
-		fields((*Inner)(nil)),
+		get((*Inner)(nil)),
 	)
 
-	identical := func(typA, typB interface{}) {
+	t.Run(`no structs`, func(t *testing.T) {
+		eq(
+			t,
+			[]r.StructField{
+				{
+					Name:   `One`,
+					Type:   r.TypeOf(string(``)),
+					Offset: 0,
+					Index:  []int{0},
+				},
+				{
+					Name:   `Two`,
+					Type:   r.TypeOf(int(0)),
+					Offset: u.Sizeof(string(``)),
+					Index:  []int{1},
+				},
+			},
+			get(struct {
+				One string
+				Two int
+			}{}),
+		)
+	})
+
+	t.Run(`non-embedded structs`, func(t *testing.T) {
+		eq(
+			t,
+			[]r.StructField{
+				{
+					Name:   `One`,
+					Type:   r.TypeOf(string(``)),
+					Offset: 0,
+					Index:  []int{0},
+				},
+				{
+					Name:   `Two`,
+					Type:   r.TypeOf(Inner{}),
+					Offset: u.Sizeof(string(``)),
+					Index:  []int{1},
+				},
+				{
+					Name:   `Three`,
+					Type:   r.TypeOf((*Inner)(nil)),
+					Offset: u.Sizeof(string(``)) + u.Sizeof(Inner{}),
+					Index:  []int{2},
+				},
+				{
+					Name:   `Four`,
+					Type:   r.TypeOf(int(0)),
+					Offset: u.Sizeof(string(``)) + u.Sizeof(Inner{}) + u.Sizeof((*Inner)(nil)),
+					Index:  []int{3},
+				},
+			},
+			get(struct {
+				One   string
+				Two   Inner
+				Three *Inner
+				Four  int
+			}{}),
+		)
+	})
+
+	t.Run(`non-struct embed`, func(t *testing.T) {
+		type Str = string
+		type Int = int
+
+		eq(
+			t,
+			[]r.StructField{
+				{
+					Name:      `Str`,
+					Type:      r.TypeOf(Str(``)),
+					Anonymous: true,
+					Offset:    0,
+					Index:     []int{0},
+				},
+				{
+					Name:      `Int`,
+					Type:      r.TypeOf(Int(0)),
+					Anonymous: true,
+					Offset:    u.Sizeof(Str(``)),
+					Index:     []int{1},
+				},
+				{
+					Name:      `Stringer`,
+					Type:      r.TypeOf((*fmt.Stringer)(nil)).Elem(),
+					Anonymous: true,
+					Offset:    u.Sizeof(Str(``)) + u.Sizeof(Int(0)),
+					Index:     []int{2},
+				},
+				{
+					Name:      `Path`,
+					Type:      r.TypeOf(Path(nil)),
+					Anonymous: true,
+					Offset:    u.Sizeof(Str(``)) + u.Sizeof(Int(0)) + u.Sizeof(fmt.Stringer(nil)),
+					Index:     []int{3},
+				},
+			},
+			get(struct {
+				Str
+				Int
+				fmt.Stringer
+				Path
+			}{}),
+		)
+	})
+
+	t.Run(`embed by pointer`, func(t *testing.T) {
+		eq(
+			t,
+			[]r.StructField{
+				{
+					Name:      `One`,
+					Type:      r.TypeOf(string(``)),
+					Anonymous: false,
+					Offset:    0,
+					Index:     []int{0},
+				},
+				{
+					Name:      `Embed`,
+					Type:      r.TypeOf((*Embed)(nil)),
+					Anonymous: true,
+					Offset:    u.Sizeof(string(``)),
+					Index:     []int{1},
+				},
+				{
+					Name:      `Two`,
+					Type:      r.TypeOf(int(0)),
+					Anonymous: false,
+					Offset:    u.Sizeof(string(``)) + u.Sizeof((*Embed)(nil)),
+					Index:     []int{2},
+				},
+			},
+			get(struct {
+				One string
+				*Embed
+				Two int
+			}{}),
+		)
+	})
+}
+
+func testFieldsCaching(t testing.TB, get func(interface{}) []r.StructField) {
+	test := func(typA, typB interface{}) {
 		t.Helper()
 
-		valA := fields(typA)
-		valB := fields(typB)
+		valA := get(typA)
+		valB := get(typB)
 
 		is(t, &valA[0], &valB[0])
 	}
 
-	identical((*Inner)(nil), (*Inner)(nil))
-	identical(Inner{}, (*Inner)(nil))
-	identical((*Inner)(nil), Inner{})
-	identical(Inner{}, Inner{})
+	test((*Inner)(nil), (*Inner)(nil))
+	test(Inner{}, (*Inner)(nil))
+	test((*Inner)(nil), Inner{})
+	test(Inner{}, Inner{})
+}
+
+func TestOffsetFields(t *testing.T) {
+	testOffsetFields(t, OffsetFields)
+}
+
+func TestTypeOffsetFields(t *testing.T) {
+	testOffsetFields(t, func(typ interface{}) map[uintptr][]r.StructField {
+		return TypeOffsetFields(r.TypeOf(typ))
+	})
+}
+
+func testOffsetFields(t testing.TB, get func(interface{}) map[uintptr][]r.StructField) {
+	eq(
+		t,
+		map[uintptr][]r.StructField(nil),
+		get(nil),
+	)
+
+	eq(
+		t,
+		map[uintptr][]r.StructField{},
+		get(struct{}{}),
+	)
+
+	eq(
+		t,
+		map[uintptr][]r.StructField{},
+		get((*struct{})(nil)),
+	)
+
+	eq(
+		t,
+		map[uintptr][]r.StructField{0: {{
+			Name:  `One`,
+			Type:  r.TypeOf(string(``)),
+			Index: []int{0},
+		}}},
+		get(struct{ One string }{}),
+	)
+
+	type Empty2 struct{}
+	type Empty1 struct{ Empty2 }
+	type Empty0 struct {
+		Empty1
+		Empty2
+	}
+
+	eq(
+		t,
+		map[uintptr][]r.StructField{
+			0: {{
+				Name:  `One`,
+				Type:  r.TypeOf(string(``)),
+				Index: []int{0},
+			}},
+			u.Sizeof(string(``)): {{
+				Name:   `Two`,
+				Type:   r.TypeOf(int(0)),
+				Offset: u.Sizeof(string(``)),
+				Index:  []int{2},
+			}},
+		},
+		get(struct {
+			One string
+			Empty0
+			Two int
+		}{}),
+	)
+
+	eq(
+		t,
+		map[uintptr][]r.StructField{
+			0: {{
+				Name:  `One`,
+				Type:  r.TypeOf(string(``)),
+				Index: []int{0},
+			}},
+			u.Sizeof(string(``)): {
+				{
+					Name:   `Two`,
+					Type:   r.TypeOf(Empty0{}),
+					Offset: u.Sizeof(string(``)),
+					Index:  []int{1},
+				},
+				{
+					Name:   `Three`,
+					Type:   r.TypeOf(int(0)),
+					Offset: u.Sizeof(string(``)),
+					Index:  []int{2},
+				},
+			},
+		},
+		get(struct {
+			One   string
+			Two   Empty0
+			Three int
+		}{}),
+	)
 }
 
 func TestInvertSelf(t *testing.T) {
@@ -756,4 +1113,50 @@ func TestMaybeOr(t *testing.T) {
 	eq(t, Desc{}, MaybeOr(nil, Desc{}, nil))
 	eq(t, Or{Self{}, Desc{}}, MaybeOr(Self{}, Desc{}))
 	eq(t, Or{Self{}, Desc{}}, MaybeOr(nil, Self{}, nil, Desc{}, nil))
+}
+
+func Test_reflect_Type_FieldByIndex(t *testing.T) {
+	typ := r.TypeOf(struct {
+		One [4]string
+		Two [8]int
+		Embed
+	}{})
+
+	field := typ.FieldByIndex([]int{2, 1})
+
+	eq(
+		t,
+		r.StructField{
+			Name:      `EmbedNum`,
+			Type:      r.TypeOf(int(0)),
+			Anonymous: false,
+			Tag:       `json:"embedNum" db:"embed_num"`,
+			Offset:    u.Sizeof(string(``)), // Part of our problem.
+			Index:     []int{1},             // Another part of our problem.
+		},
+		field,
+	)
+}
+
+func Test_reflect_Type_FieldByName(t *testing.T) {
+	typ := r.TypeOf(struct {
+		One [4]string
+		Two [8]int
+		Embed
+	}{})
+
+	field, _ := typ.FieldByName(`EmbedNum`)
+
+	eq(
+		t,
+		r.StructField{
+			Name:      `EmbedNum`,
+			Type:      r.TypeOf(int(0)),
+			Anonymous: false,
+			Tag:       `json:"embedNum" db:"embed_num"`,
+			Offset:    u.Sizeof(string(``)), // This is our problem.
+			Index:     []int{2, 1},
+		},
+		field,
+	)
 }

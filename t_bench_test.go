@@ -7,6 +7,15 @@ import (
 	"unsafe"
 )
 
+// Causes the input to escape, allowing us to measure allocs.
+var (
+	pathNop    = func(Path) {}
+	filterNop  = func(Filter) {}
+	stringsNop = func(string, string) {}
+	ifaceNop   = func(interface{}) {}
+	bytesNop   = func([]byte) {}
+)
+
 func BenchmarkGetWalker(b *testing.B) {
 	for range Iter(b.N) {
 		benchGetWalker()
@@ -80,9 +89,6 @@ func BenchmarkTypeFilterFor(b *testing.B) {
 		filterNop(TypeFilterFor((*string)(nil)))
 	}
 }
-
-// Causes the input to escape, allowing us to measure allocs.
-var filterNop = func(Filter) {}
 
 func BenchmarkMaybeAndEmpty(b *testing.B) {
 	for range Iter(b.N) {
@@ -195,4 +201,34 @@ func Benchmark_map_range(b *testing.B) {
 	}
 }
 
-var stringsNop = func(string, string) {}
+func Benchmark_Path_Add_Reset(b *testing.B) {
+	path := make(Path, 0, expectedStructNesting)
+	b.ResetTimer()
+
+	for i := range Iter(b.N) {
+		benchPathAddReset(&path, i)
+	}
+}
+
+func benchPathAddReset(path *Path, index int) {
+	defer path.Add([]int{index}).Reset()
+	pathNop(*path)
+}
+
+func Benchmark_reflect_Value_Interface(b *testing.B) {
+	val := r.ValueOf(struct{ Inner []byte }{}).Field(0)
+	b.ResetTimer()
+
+	for range Iter(b.N) {
+		bytesNop(val.Interface().([]byte))
+	}
+}
+
+func Benchmark_reflect_Value_Addr_Interface(b *testing.B) {
+	val := r.ValueOf(&struct{ Inner []byte }{}).Elem().Field(0)
+	b.ResetTimer()
+
+	for range Iter(b.N) {
+		bytesNop(*val.Addr().Interface().(*[]byte))
+	}
+}

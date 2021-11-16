@@ -6,6 +6,10 @@ import (
 	"sync"
 )
 
+const (
+	expectedStructNesting = 8
+)
+
 var (
 	walkerCacheStatic walkerCache
 
@@ -336,17 +340,6 @@ func maybeCombineFilters(src, out []Filter) []Filter {
 	return out
 }
 
-var typeFieldsCache = Cache{Func: func(typ r.Type) interface{} { return typeFields(typ) }}
-
-func typeFields(typ r.Type) []r.StructField {
-	typ = ValidateTypeStruct(typ)
-	out := make([]r.StructField, 0, typ.NumField())
-	for i := range Iter(typ.NumField()) {
-		out = append(out, typ.Field(i))
-	}
-	return out
-}
-
 func ifaceVisit(visTyp, ifaceTyp r.Type, hit byte) byte {
 	if visTyp == nil || ifaceTyp == nil {
 		return VisNone
@@ -356,3 +349,51 @@ func ifaceVisit(visTyp, ifaceTyp r.Type, hit byte) byte {
 	}
 	return VisDesc
 }
+
+var typeFieldsCache = Cache{Func: func(typ r.Type) interface{} {
+	typ = ValidateTypeStruct(typ)
+	out := make([]r.StructField, 0, typ.NumField())
+	for i := range Iter(typ.NumField()) {
+		out = append(out, typ.Field(i))
+	}
+	return out
+}}
+
+var typeDeepFieldsCache = Cache{Func: func(typ r.Type) interface{} {
+	typ = ValidateTypeStruct(typ)
+	buf := make([]r.StructField, 0, typ.NumField())
+	path := make(Path, 0, expectedStructNesting)
+	appendStructDeepFields(&buf, &path, r.StructField{Type: typ, Anonymous: true})
+	return buf
+}}
+
+func appendStructDeepFields(
+	buf *[]r.StructField, path *Path, field r.StructField,
+) {
+	defer path.Add(field.Index).Reset()
+
+	typ := TypeDeref(field.Type)
+	if IsEmbed(field) {
+		for _, inner := range TypeFields(typ) {
+			inner.Offset += field.Offset
+			appendStructDeepFields(buf, path, inner)
+		}
+	} else {
+		field.Index = path.Copy()
+		*buf = append(*buf, field)
+	}
+}
+
+var typeOffsetFieldsCache = Cache{Func: func(typ r.Type) interface{} {
+	typ = ValidateTypeStruct(typ)
+	if typ == nil {
+		return map[uintptr][]r.StructField(nil)
+	}
+
+	fields := TypeDeepFields(typ)
+	out := make(map[uintptr][]r.StructField, len(fields))
+	for _, field := range fields {
+		out[field.Offset] = append(out[field.Offset], field)
+	}
+	return out
+}}

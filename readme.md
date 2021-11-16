@@ -6,6 +6,26 @@ See the full documentation at https://pkg.go.dev/github.com/mitranim/rf.
 
 ## Changelog
 
+### v0.4.0
+
+Added:
+
+  * `ValueAddr`
+  * `Interface`
+  * `DeepFields`
+  * `TypeDeepFields`
+  * `OffsetFields`
+  * `TypeOffsetFields`
+  * `Path`
+  * `Rev`
+
+Breaking changes:
+
+  * Renamed all functions starting with `DerefValue*` to begin with `Deref*`.
+  * Replaced `CopyPath` with `Path.Copy`.
+
+`DeepFields` and `TypeDeepFields` is a particularly useful addition, as it supports "flattening" structs, simplifying most use cases that involve struct iteration.
+
 ### v0.3.3
 
 Add `IfaceFilterFor`, `ShallowIfaceFilterFor`.
