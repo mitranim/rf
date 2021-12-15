@@ -288,6 +288,3 @@ func DerefSlice(val interface{}) r.Value { return DerefWithKind(val, r.Slice) }
 
 // Shortcut for `rf.DerefWithKind(val, reflect.Struct)`.
 func DerefStruct(val interface{}) r.Value { return DerefWithKind(val, r.Struct) }
-
-// Shortcut for `rf.DerefWithKind(val, reflect.Ptr)`.
-func DerefPtr(val interface{}) r.Value { return DerefWithKind(val, r.Ptr) }

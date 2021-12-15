@@ -12,7 +12,6 @@ var (
 	pathNop    = func(Path) {}
 	filterNop  = func(Filter) {}
 	stringsNop = func(string, string) {}
-	ifaceNop   = func(interface{}) {}
 	bytesNop   = func([]byte) {}
 )
 

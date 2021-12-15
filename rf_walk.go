@@ -123,16 +123,19 @@ type VisitorFunc func(r.Value, r.StructField)
 
 // Implement `rf.Visitor` by calling itself.
 func (self VisitorFunc) Visit(val r.Value, field r.StructField) {
-	if self != nil {
-		self(val, field)
+	if self == nil {
+		return
 	}
+	self(val, field)
 }
 
 // Shortcut for calling `rf.Walk` with a visitor func.
 func WalkFunc(val r.Value, fil Filter, vis VisitorFunc) {
-	if vis != nil {
-		Walk(val, fil, vis)
+	// `Walk` can't detect this case. We have to check it here.
+	if vis == nil {
+		return
 	}
+	Walk(val, fil, vis)
 }
 
 /*
@@ -141,6 +144,16 @@ each node allowed by the filter. Internally, uses `rf.GetWalker` to get or
 create a walker specialized for this combination of type and filter. For each
 type+filter combination, `rf.GetWalker` generates a specialized walker, caching
 it for future calls. This approach allows MUCH more efficient walking.
+
+If the input is zero/invalid/nil or the visitor is nil, this is a nop. For
+slightly better performance, pass a pointer to avoid copying.
+
+See also:
+
+	rf.Walker
+	rf.Filter
+	rf.Visitor
+	rf.GetWalker
 */
 func Walk(val r.Value, fil Filter, vis Visitor) {
 	if vis == nil {
@@ -148,9 +161,44 @@ func Walk(val r.Value, fil Filter, vis Visitor) {
 	}
 
 	wal := GetWalker(ValueType(val), fil)
-	if wal != nil {
-		wal.Walk(val, vis)
+	if wal == nil {
+		return
 	}
+
+	wal.Walk(val, vis)
+}
+
+/*
+Shortcut for `rf.Walk` on the given value, which must be either a valid pointer
+or nil. If the value is nil, this is a nop. Requiring a pointer is useful for
+both efficiency and correctness. Even if the walker doesn't modify anything,
+passing a pointer reduces the amount of copying. If the walker does modify
+walked values, and you try to walk a non-pointer, you will get uninformative
+panics from the "reflect" package. This function validates the inputs early,
+making it easier to catch such bugs.
+*/
+func WalkPtr(val interface{}, fil Filter, vis Visitor) {
+	if val == nil {
+		return
+	}
+	Walk(ValueDeref(ValidateValueKind(r.ValueOf(val), r.Ptr)), fil, vis)
+}
+
+// Shortcut for calling `rf.WalkPtr` with a visitor func.
+func WalkFuncPtr(val interface{}, fil Filter, vis VisitorFunc) {
+	if val == nil {
+		return
+	}
+
+	// Validate before early return.
+	tar := ValueDeref(ValidateValueKind(r.ValueOf(val), r.Ptr))
+
+	// `Walk` can't detect this case. We have to check it here.
+	if vis == nil {
+		return
+	}
+
+	Walk(tar, fil, vis)
 }
 
 /*

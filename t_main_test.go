@@ -1,7 +1,10 @@
 package rf
 
 import (
+	"fmt"
 	r "reflect"
+	"runtime"
+	"strings"
 	"testing"
 	"unsafe"
 )
@@ -111,6 +114,37 @@ actual (simple):
 	}
 }
 
+func panics(t testing.TB, msg string, fun func()) {
+	t.Helper()
+	val := catchAny(fun)
+
+	if val == nil {
+		t.Fatalf(`expected %v to panic, found no panic`, funcName(fun))
+	}
+
+	str := fmt.Sprint(val)
+	if !strings.Contains(str, msg) {
+		t.Fatalf(`
+expected %v to panic with a message containing:
+	%v
+found the following message:
+	%v
+`, funcName(fun), msg, str)
+	}
+}
+
+func funcName(val interface{}) string {
+	return runtime.FuncForPC(r.ValueOf(val).Pointer()).Name()
+}
+
+func catchAny(fun func()) (val interface{}) {
+	defer recAny(&val)
+	fun()
+	return
+}
+
+func recAny(ptr *interface{}) { *ptr = recover() }
+
 func stringPtr(val string) *string { return &val }
 func intPtr(val int) *int          { return &val }
 
@@ -120,3 +154,9 @@ var testSlice = func() (out []Outer) {
 	}
 	return
 }()
+
+type PanicVis struct{}
+
+func (self PanicVis) Visit(r.Value, r.StructField) {
+	panic(fmt.Errorf(`unexpected call to %q`, funcName(self.Visit)))
+}
