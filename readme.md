@@ -6,6 +6,10 @@ See the full documentation at https://pkg.go.dev/github.com/mitranim/rf.
 
 ## Changelog
 
+### v0.4.2
+
+Rename `WalkFuncPtr` → `WalkPtrFunc`.
+
 ### v0.4.1
 
 Add `WalkPtr` and `WalkFuncPtr`. Remove `DerefPtr` because it made no sense.

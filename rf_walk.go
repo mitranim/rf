@@ -185,7 +185,7 @@ func WalkPtr(val interface{}, fil Filter, vis Visitor) {
 }
 
 // Shortcut for calling `rf.WalkPtr` with a visitor func.
-func WalkFuncPtr(val interface{}, fil Filter, vis VisitorFunc) {
+func WalkPtrFunc(val interface{}, fil Filter, vis VisitorFunc) {
 	if val == nil {
 		return
 	}

@@ -628,28 +628,28 @@ func TestWalkPtr_valid_non_nil(t *testing.T) {
 	})
 }
 
-func TestWalkFuncPtr_invalid(t *testing.T) {
+func TestWalkPtrFunc_invalid(t *testing.T) {
 	panics(t, `expected kind ptr`, func() {
-		WalkFuncPtr(0, All{}, func(r.Value, r.StructField) {})
+		WalkPtrFunc(0, All{}, func(r.Value, r.StructField) {})
 	})
 	panics(t, `expected kind ptr`, func() {
-		WalkFuncPtr(``, All{}, func(r.Value, r.StructField) {})
+		WalkPtrFunc(``, All{}, func(r.Value, r.StructField) {})
 	})
 	panics(t, `expected kind ptr`, func() {
-		WalkFuncPtr(Outer{}, All{}, func(r.Value, r.StructField) {})
+		WalkPtrFunc(Outer{}, All{}, func(r.Value, r.StructField) {})
 	})
 }
 
-func TestWalkFuncPtr_valid_nil(t *testing.T) {
-	WalkFuncPtr(nil, All{}, nil)
-	WalkFuncPtr((*Outer)(nil), All{}, nil)
-	WalkFuncPtr(nil, All{}, func(r.Value, r.StructField) {})
-	WalkFuncPtr((*Outer)(nil), All{}, func(r.Value, r.StructField) {})
+func TestWalkPtrFunc_valid_nil(t *testing.T) {
+	WalkPtrFunc(nil, All{}, nil)
+	WalkPtrFunc((*Outer)(nil), All{}, nil)
+	WalkPtrFunc(nil, All{}, func(r.Value, r.StructField) {})
+	WalkPtrFunc((*Outer)(nil), All{}, func(r.Value, r.StructField) {})
 }
 
-func TestWalkFuncPtr_valid_non_nil(t *testing.T) {
+func TestWalkPtrFunc_valid_non_nil(t *testing.T) {
 	testWalkPtr(t, func(val interface{}) {
-		WalkFuncPtr(val, TypeFilterFor(``), func(val r.Value, _ r.StructField) {
+		WalkPtrFunc(val, TypeFilterFor(``), func(val r.Value, _ r.StructField) {
 			val.SetString(`val`)
 		})
 	})
