@@ -4,6 +4,7 @@ import (
 	"fmt"
 	r "reflect"
 	"sync"
+	u "unsafe"
 )
 
 const (
@@ -279,6 +280,7 @@ func fieldIndex(val r.StructField) int {
 	return 0
 }
 
+// TODO move filter validation to `makeWalker`.
 func validateFilter(src Filter) {
 	validateFilterValue(src, r.ValueOf(src))
 }
@@ -350,7 +352,7 @@ func ifaceVisit(visTyp, ifaceTyp r.Type, hit byte) byte {
 	return VisDesc
 }
 
-var typeFieldsCache = Cache{Func: func(typ r.Type) interface{} {
+var typeFieldsCache = Cache{Func: func(typ r.Type) any {
 	typ = ValidateTypeStruct(typ)
 	out := make([]r.StructField, 0, typ.NumField())
 	for i := range Iter(typ.NumField()) {
@@ -359,7 +361,7 @@ var typeFieldsCache = Cache{Func: func(typ r.Type) interface{} {
 	return out
 }}
 
-var typeDeepFieldsCache = Cache{Func: func(typ r.Type) interface{} {
+var typeDeepFieldsCache = Cache{Func: func(typ r.Type) any {
 	typ = ValidateTypeStruct(typ)
 	buf := make([]r.StructField, 0, typ.NumField())
 	path := make(Path, 0, expectedStructNesting)
@@ -384,7 +386,7 @@ func appendStructDeepFields(
 	}
 }
 
-var typeOffsetFieldsCache = Cache{Func: func(typ r.Type) interface{} {
+var typeOffsetFieldsCache = Cache{Func: func(typ r.Type) any {
 	typ = ValidateTypeStruct(typ)
 	if typ == nil {
 		return map[uintptr][]r.StructField(nil)
@@ -397,3 +399,5 @@ var typeOffsetFieldsCache = Cache{Func: func(typ r.Type) interface{} {
 	}
 	return out
 }}
+
+func cast[Out, Src any](val Src) Out { return *(*Out)(u.Pointer(&val)) }

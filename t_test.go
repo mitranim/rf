@@ -57,7 +57,7 @@ func TestDeref(t *testing.T) {
 	eq(t, r.Value{}, Deref((*string)(nil)))
 	eq(t, r.Value{}, Deref((*[]string)(nil)))
 
-	test := func(exp, src interface{}) {
+	test := func(exp, src any) {
 		t.Helper()
 		eq(t, r.ValueOf(exp).Interface(), Deref(src).Interface())
 	}
@@ -87,8 +87,8 @@ func TestValueDeref(t *testing.T) {
 func TestElemType(t *testing.T) {
 	eq(t, nil, ElemType(nil))
 	eq(t, r.TypeOf(nil), ElemType(nil))
-	eq(t, r.TypeOf((*interface{})(nil)).Elem(), ElemType((*interface{})(nil)))
-	eq(t, r.TypeOf((*interface{})(nil)).Elem(), ElemType((**interface{})(nil)))
+	eq(t, r.TypeOf((*any)(nil)).Elem(), ElemType((*any)(nil)))
+	eq(t, r.TypeOf((*any)(nil)).Elem(), ElemType((**any)(nil)))
 	eq(t, r.TypeOf(``), ElemType(``))
 	eq(t, r.TypeOf(``), ElemType(stringPtr(``)))
 	eq(t, r.TypeOf(``), ElemType((*string)(nil)))
@@ -123,7 +123,7 @@ func TestValueType(t *testing.T) {
 	eq(t, nil, ValueType(r.Value{}))
 	eq(t, r.TypeOf(``), ValueType(r.ValueOf(``)))
 	eq(t, r.TypeOf((*string)(nil)), ValueType(r.ValueOf((*string)(nil))))
-	eq(t, r.TypeOf((*interface{})(nil)), ValueType(r.ValueOf((*interface{})(nil))))
+	eq(t, r.TypeOf((*any)(nil)), ValueType(r.ValueOf((*any)(nil))))
 }
 
 func TestTypeKind(t *testing.T) {
@@ -144,20 +144,20 @@ func TestFuncName(t *testing.T) {
 }
 
 func TestIsNil(t *testing.T) {
-	testIsNil(func(exp bool, val interface{}) {
+	testIsNil(func(exp bool, val any) {
 		t.Helper()
 		eq(t, exp, IsNil(val))
 	})
 }
 
 func TestValueIsNil(t *testing.T) {
-	testIsNil(func(exp bool, val interface{}) {
+	testIsNil(func(exp bool, val any) {
 		t.Helper()
 		eq(t, exp, IsValueNil(r.ValueOf(val)))
 	})
 }
 
-func testIsNil(test func(bool, interface{})) {
+func testIsNil(test func(bool, any)) {
 	test(true, nil)
 	test(true, (*string)(nil))
 	test(true, []string(nil))
@@ -217,20 +217,20 @@ func TestZero(t *testing.T) {
 }
 
 func TestIsZero(t *testing.T) {
-	testIsZero(func(exp bool, val interface{}) {
+	testIsZero(func(exp bool, val any) {
 		t.Helper()
 		eq(t, exp, IsZero(val))
 	})
 }
 
 func TestValueIsZero(t *testing.T) {
-	testIsZero(func(exp bool, val interface{}) {
+	testIsZero(func(exp bool, val any) {
 		t.Helper()
 		eq(t, exp, IsValueZero(r.ValueOf(val)))
 	})
 }
 
-func testIsZero(test func(bool, interface{})) {
+func testIsZero(test func(bool, any)) {
 	test(true, nil)
 	test(true, ``)
 	test(true, 0)
@@ -309,7 +309,7 @@ func TestIsKindColl(t *testing.T) {
 }
 
 func TestIsColl(t *testing.T) {
-	test := func(exp bool, val interface{}) {
+	test := func(exp bool, val any) {
 		t.Helper()
 		eq(t, exp, IsColl(val))
 	}
@@ -329,20 +329,20 @@ func TestIsColl(t *testing.T) {
 }
 
 func TestIsEmptyColl(t *testing.T) {
-	testIsEmptyColl(func(exp bool, val interface{}) {
+	testIsEmptyColl(func(exp bool, val any) {
 		t.Helper()
 		eq(t, exp, IsEmptyColl(val))
 	})
 }
 
 func TestIsValueEmptyColl(t *testing.T) {
-	testIsEmptyColl(func(exp bool, val interface{}) {
+	testIsEmptyColl(func(exp bool, val any) {
 		t.Helper()
 		eq(t, exp, IsValueEmptyColl(r.ValueOf(val)))
 	})
 }
 
-func testIsEmptyColl(test func(bool, interface{})) {
+func testIsEmptyColl(test func(bool, any)) {
 	test(true, ``)
 	test(true, []string(nil))
 	test(true, []string{})
@@ -361,7 +361,7 @@ func testIsEmptyColl(test func(bool, interface{})) {
 }
 
 func TestNormNil(t *testing.T) {
-	test := func(exp, src interface{}) {
+	test := func(exp, src any) {
 		t.Helper()
 		eq(t, exp, NormNil(src))
 	}
@@ -373,7 +373,7 @@ func TestNormNil(t *testing.T) {
 }
 
 func TestLen(t *testing.T) {
-	test := func(exp int, val interface{}) {
+	test := func(exp int, val any) {
 		t.Helper()
 		eq(t, exp, Len(val))
 	}
@@ -404,7 +404,7 @@ func TestLen(t *testing.T) {
 }
 
 func TestValueLen(t *testing.T) {
-	test := func(exp int, val interface{}) {
+	test := func(exp int, val any) {
 		t.Helper()
 		eq(t, exp, ValueLen(r.ValueOf(val)))
 	}
@@ -435,7 +435,7 @@ func TestValueLen(t *testing.T) {
 }
 
 func TestSliceType(t *testing.T) {
-	test := func(exp, src interface{}) {
+	test := func(exp, src any) {
 		t.Helper()
 		eq(t, r.TypeOf(exp), SliceType(src))
 	}
@@ -448,25 +448,17 @@ func TestSliceType(t *testing.T) {
 }
 
 func TestTypeFilter(t *testing.T) {
-	test := func(exp byte, visTyp, filTyp interface{}) {
+	test := func(exp byte, visTyp r.Type, fil Filter) {
 		t.Helper()
-
-		eq(
-			t,
-			exp,
-			TypeFilter{r.TypeOf(filTyp)}.Visit(r.TypeOf(visTyp), r.StructField{}),
-		)
+		eq(t, exp, fil.Visit(visTyp, r.StructField{}))
 	}
 
-	test(VisNone, nil, nil)
-	test(VisBoth, string(``), string(``))
-	test(VisBoth, int(0), int(0))
-	test(VisDesc, string(``), int(0))
-	test(VisDesc, int(0), string(``))
-	test(VisDesc, nil, string(``))
-	test(VisDesc, nil, int(0))
-	test(VisNone, string(``), nil)
-	test(VisNone, int(0), nil)
+	test(VisDesc, nil, TypeFilter[string]{})
+	test(VisDesc, nil, TypeFilter[int]{})
+	test(VisBoth, Type[string](), TypeFilter[string]{})
+	test(VisDesc, Type[string](), TypeFilter[int]{})
+	test(VisDesc, Type[int](), TypeFilter[string]{})
+	test(VisBoth, Type[int](), TypeFilter[int]{})
 }
 
 func TestTagFilter(t *testing.T) {
@@ -486,77 +478,41 @@ func TestTagFilter(t *testing.T) {
 }
 
 func TestIfaceFilter(t *testing.T) {
-	test := func(exp byte, visTyp, ifaceTyp interface{}) {
+	test := func(exp byte, visTyp r.Type, fil Filter) {
 		t.Helper()
-
-		eq(
-			t,
-			exp,
-			IfaceFilter{DerefType(ifaceTyp)}.Visit(r.TypeOf(visTyp), r.StructField{}),
-		)
+		eq(t, exp, fil.Visit(visTyp, r.StructField{}))
 	}
 
-	test(VisNone, nil, nil)
-	test(VisNone, time.Time{}, nil)
-	test(VisNone, string(``), nil)
-	test(VisNone, int(0), nil)
-	test(VisNone, nil, (*fmt.Stringer)(nil))
-
-	test(VisBoth, time.Time{}, (*fmt.Stringer)(nil))
-	test(VisDesc, (*time.Time)(nil), (*fmt.Stringer)(nil))
-	test(VisDesc, string(``), (*fmt.Stringer)(nil))
-	test(VisDesc, int(0), (*fmt.Stringer)(nil))
+	test(VisNone, nil, IfaceFilter[fmt.Stringer]{})
+	test(VisBoth, Type[time.Time](), IfaceFilter[fmt.Stringer]{})
+	test(VisDesc, Type[*time.Time](), IfaceFilter[fmt.Stringer]{})
+	test(VisDesc, Type[string](), IfaceFilter[fmt.Stringer]{})
+	test(VisDesc, Type[int](), IfaceFilter[fmt.Stringer]{})
 }
 
 func TestShallowIfaceFilter(t *testing.T) {
-	test := func(exp byte, visTyp, ifaceTyp interface{}) {
+	test := func(exp byte, visTyp r.Type, fil Filter) {
 		t.Helper()
-
-		eq(
-			t,
-			exp,
-			ShallowIfaceFilter{DerefType(ifaceTyp)}.Visit(r.TypeOf(visTyp), r.StructField{}),
-		)
+		eq(t, exp, fil.Visit(visTyp, r.StructField{}))
 	}
 
-	test(VisNone, nil, nil)
-	test(VisNone, time.Time{}, nil)
-	test(VisNone, string(``), nil)
-	test(VisNone, int(0), nil)
-	test(VisNone, nil, (*fmt.Stringer)(nil))
-
-	test(VisSelf, time.Time{}, (*fmt.Stringer)(nil))
-	test(VisDesc, (*time.Time)(nil), (*fmt.Stringer)(nil))
-	test(VisDesc, string(``), (*fmt.Stringer)(nil))
-	test(VisDesc, int(0), (*fmt.Stringer)(nil))
-}
-
-func TestAppenderFor(t *testing.T) {
-	test := func(exp, val interface{}) {
-		t.Helper()
-		eq(t, exp, AppenderFor(val).Interface())
-	}
-
-	test([]string(nil), ``)
-	test([]string(nil), (*string)(nil))
-	test([]string(nil), (**string)(nil))
-	test([]int(nil), 0)
-	test([]int(nil), (*int)(nil))
-	test([]int(nil), (**int)(nil))
-
-	eq(t, true, AppenderFor((*string)(nil))[0].CanSet())
+	test(VisNone, nil, ShallowIfaceFilter[fmt.Stringer]{})
+	test(VisSelf, Type[time.Time](), ShallowIfaceFilter[fmt.Stringer]{})
+	test(VisDesc, Type[*time.Time](), ShallowIfaceFilter[fmt.Stringer]{})
+	test(VisDesc, Type[string](), ShallowIfaceFilter[fmt.Stringer]{})
+	test(VisDesc, Type[int](), ShallowIfaceFilter[fmt.Stringer]{})
 }
 
 func TestAppender(t *testing.T) {
-	val := AppenderFor((*string)(nil))
+	var tar Appender[string]
 
-	val.Visit(r.ValueOf(``), r.StructField{})
-	val.Visit(r.ValueOf(`one`), r.StructField{})
-	val.Visit(r.ValueOf(``), r.StructField{})
-	val.Visit(r.ValueOf(`two`), r.StructField{})
-	val.Visit(r.ValueOf(``), r.StructField{})
+	tar.Visit(r.ValueOf(``), r.StructField{})
+	tar.Visit(r.ValueOf(`one`), r.StructField{})
+	tar.Visit(r.ValueOf(``), r.StructField{})
+	tar.Visit(r.ValueOf(`two`), r.StructField{})
+	tar.Visit(r.ValueOf(``), r.StructField{})
 
-	eq(t, []string{`one`, `two`}, val.Interface())
+	eq(t, Appender[string]{`one`, `two`}, tar)
 }
 
 func TestGetWalker_nil(t *testing.T) {
@@ -566,8 +522,8 @@ func TestGetWalker_nil(t *testing.T) {
 }
 
 func TestGetWalker_caching(t *testing.T) {
-	filter0 := TypeFilter{r.TypeOf(string(``))}
-	filter1 := TypeFilter{r.TypeOf(int(0))}
+	var filter0 TypeFilter[string]
+	var filter1 TypeFilter[int]
 	typeOuter := r.TypeOf(Outer{})
 	typeInner := r.TypeOf(Inner{})
 
@@ -579,26 +535,26 @@ func TestGetWalker_caching(t *testing.T) {
 
 func Test_walking(t *testing.T) {
 	{
-		vis := AppenderFor((*string)(nil))
+		var tar Appender[string]
 
-		Walk(testOuterVal, vis.Filter(), vis)
+		Walk(testOuterVal, tar.Filter(), &tar)
 
 		eq(
 			t,
-			[]string{`embed val`, `embed ptr val`, `outer val`, `inner val`, `inner ptr val`, `outer iface`},
-			vis.Interface(),
+			Appender[string]{`embed val`, `embed ptr val`, `outer val`, `inner val`, `inner ptr val`, `outer iface`},
+			tar,
 		)
 	}
 
 	{
-		vis := AppenderFor((*int)(nil))
+		var tar Appender[int]
 
-		Walk(testOuterVal, vis.Filter(), vis)
+		Walk(testOuterVal, tar.Filter(), &tar)
 
 		eq(
 			t,
-			[]int{10, 20, 30, 40},
-			vis.Interface(),
+			Appender[int]{10, 20, 30, 40},
+			tar,
 		)
 	}
 }
@@ -621,8 +577,8 @@ func TestWalkPtr_valid_nil(t *testing.T) {
 }
 
 func TestWalkPtr_valid_non_nil(t *testing.T) {
-	testWalkPtr(t, func(val interface{}) {
-		WalkPtr(val, TypeFilterFor(``), VisitorFunc(func(val r.Value, _ r.StructField) {
+	testWalkPtr(t, func(val any) {
+		WalkPtr(val, TypeFilter[string]{}, VisitorFunc(func(val r.Value, _ r.StructField) {
 			val.SetString(`val`)
 		}))
 	})
@@ -648,14 +604,14 @@ func TestWalkPtrFunc_valid_nil(t *testing.T) {
 }
 
 func TestWalkPtrFunc_valid_non_nil(t *testing.T) {
-	testWalkPtr(t, func(val interface{}) {
-		WalkPtrFunc(val, TypeFilterFor(``), func(val r.Value, _ r.StructField) {
+	testWalkPtr(t, func(val any) {
+		WalkPtrFunc(val, TypeFilter[string]{}, func(val r.Value, _ r.StructField) {
 			val.SetString(`val`)
 		})
 	})
 }
 
-func testWalkPtr(t testing.TB, fun func(interface{})) {
+func testWalkPtr(t testing.TB, fun func(any)) {
 	var tar Outer
 	fun(&tar)
 
@@ -689,12 +645,12 @@ func TestFields(t *testing.T) {
 }
 
 func TestTypeFields(t *testing.T) {
-	testFields(t, func(typ interface{}) []r.StructField {
+	testFields(t, func(typ any) []r.StructField {
 		return TypeFields(r.TypeOf(typ))
 	})
 }
 
-func testFields(t *testing.T, get func(interface{}) []r.StructField) {
+func testFields(t *testing.T, get func(any) []r.StructField) {
 	t.Run(`caching`, func(t *testing.T) {
 		testFieldsCaching(t, get)
 	})
@@ -725,12 +681,12 @@ func TestDeepFields(t *testing.T) {
 }
 
 func TestTypeDeepFields(t *testing.T) {
-	testDeepFields(t, func(typ interface{}) []r.StructField {
+	testDeepFields(t, func(typ any) []r.StructField {
 		return TypeDeepFields(r.TypeOf(typ))
 	})
 }
 
-func testDeepFields(t *testing.T, get func(interface{}) []r.StructField) {
+func testDeepFields(t *testing.T, get func(any) []r.StructField) {
 	t.Run(`caching`, func(t *testing.T) {
 		testFieldsCaching(t, get)
 	})
@@ -791,7 +747,7 @@ func testDeepFields(t *testing.T, get func(interface{}) []r.StructField) {
 	})
 }
 
-func testFieldsShallow(t *testing.T, get func(interface{}) []r.StructField) {
+func testFieldsShallow(t *testing.T, get func(any) []r.StructField) {
 	eq(t, []r.StructField(nil), get(nil))
 	eq(t, []r.StructField{}, get(struct{}{}))
 	eq(t, []r.StructField{}, get((*struct{})(nil)))
@@ -956,8 +912,8 @@ func testFieldsShallow(t *testing.T, get func(interface{}) []r.StructField) {
 	})
 }
 
-func testFieldsCaching(t testing.TB, get func(interface{}) []r.StructField) {
-	test := func(typA, typB interface{}) {
+func testFieldsCaching(t testing.TB, get func(any) []r.StructField) {
+	test := func(typA, typB any) {
 		t.Helper()
 
 		valA := get(typA)
@@ -977,12 +933,12 @@ func TestOffsetFields(t *testing.T) {
 }
 
 func TestTypeOffsetFields(t *testing.T) {
-	testOffsetFields(t, func(typ interface{}) map[uintptr][]r.StructField {
+	testOffsetFields(t, func(typ any) map[uintptr][]r.StructField {
 		return TypeOffsetFields(r.TypeOf(typ))
 	})
 }
 
-func testOffsetFields(t testing.TB, get func(interface{}) map[uintptr][]r.StructField) {
+func testOffsetFields(t testing.TB, get func(any) map[uintptr][]r.StructField) {
 	eq(
 		t,
 		map[uintptr][]r.StructField(nil),

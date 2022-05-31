@@ -41,7 +41,7 @@ func Benchmark_range_slice_values(b *testing.B) {
 	}
 }
 
-func benchRangeSliceValues(src interface{}) {
+func benchRangeSliceValues(src any) {
 	val := r.ValueOf(src)
 	for i := range Iter(val.Len()) {
 		val.Index(i).Interface()
@@ -54,38 +54,20 @@ func Benchmark_range_slice_pointers(b *testing.B) {
 	}
 }
 
-func benchRangeSlicePointers(src interface{}) {
+func benchRangeSlicePointers(src any) {
 	val := r.ValueOf(src).Elem()
 	for i := range Iter(val.Len()) {
 		val.Index(i).Addr().Interface()
 	}
 }
 
-func Benchmark_append_values(b *testing.B) {
-	slice := make([]string, 0, 32)
-	val := r.ValueOf(&slice).Elem()
-	app := Appender{val}
-	src := r.ValueOf(&testOuter)
-	filter := app.Filter()
-	visitor := Visitor(app)
-
+func BenchmarkAppender(b *testing.B) {
+	tar := make(Appender[string], 0, 32)
 	b.ResetTimer()
 
 	for range Iter(b.N) {
-		val.SetLen(0)
-		Walk(src, filter, visitor)
-	}
-}
-
-func BenchmarkTypeFilter(b *testing.B) {
-	for range Iter(b.N) {
-		filterNop(TypeFilter{r.TypeOf((*string)(nil))})
-	}
-}
-
-func BenchmarkTypeFilterFor(b *testing.B) {
-	for range Iter(b.N) {
-		filterNop(TypeFilterFor((*string)(nil)))
+		tar = tar[:0]
+		WalkPtr(&testOuter, tar.Filter(), &tar)
 	}
 }
 
@@ -136,7 +118,7 @@ func benchMapIterPool() {
 	defer putMapIter(iter)
 }
 
-var mapIterPool = sync.Pool{New: func() interface{} { return new(r.MapIter) }}
+var mapIterPool = sync.Pool{New: func() any { return new(r.MapIter) }}
 
 func getMapIter(val r.Value) *r.MapIter {
 	iter := mapIterPool.Get().(*r.MapIter)

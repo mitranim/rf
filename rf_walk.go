@@ -52,7 +52,7 @@ used as values rather than pointers. The following is the CORRECT way to
 construct filters:
 
 	var filter rf.Filter = rf.And{
-		TypeFilterFor((*string)(nil)),
+		TypeFilter[string]{},
 		rf.TagFilter{`json`, `fieldName`},
 	}
 
@@ -60,7 +60,7 @@ The following is the INCORRECT way to construct filters. Due to internal
 validation, this will cause panics at runtime:
 
 	var filter rf.Filter = &rf.And{
-		&rf.TypeFilter{rf.DerefType((*string)(nil))},
+		&rf.TypeFilter[string]{},
 		&rf.TagFilter{`json`, `fieldName`},
 	}
 
@@ -146,7 +146,7 @@ type+filter combination, `rf.GetWalker` generates a specialized walker, caching
 it for future calls. This approach allows MUCH more efficient walking.
 
 If the input is zero/invalid/nil or the visitor is nil, this is a nop. For
-slightly better performance, pass a pointer to avoid copying.
+slightly better performance, pass a pointer to reduce copying.
 
 See also:
 
@@ -172,12 +172,12 @@ func Walk(val r.Value, fil Filter, vis Visitor) {
 Shortcut for `rf.Walk` on the given value, which must be either a valid pointer
 or nil. If the value is nil, this is a nop. Requiring a pointer is useful for
 both efficiency and correctness. Even if the walker doesn't modify anything,
-passing a pointer reduces the amount of copying. If the walker does modify
-walked values, and you try to walk a non-pointer, you will get uninformative
-panics from the "reflect" package. This function validates the inputs early,
-making it easier to catch such bugs.
+passing a pointer reduces copying. If the walker does modify walked values, and
+you try to walk a non-pointer, you will get uninformative panics from
+the "reflect" package. This function validates the inputs early, making it
+easier to catch such bugs.
 */
-func WalkPtr(val interface{}, fil Filter, vis Visitor) {
+func WalkPtr(val any, fil Filter, vis Visitor) {
 	if val == nil {
 		return
 	}
@@ -185,7 +185,7 @@ func WalkPtr(val interface{}, fil Filter, vis Visitor) {
 }
 
 // Shortcut for calling `rf.WalkPtr` with a visitor func.
-func WalkPtrFunc(val interface{}, fil Filter, vis VisitorFunc) {
+func WalkPtrFunc(val any, fil Filter, vis VisitorFunc) {
 	if val == nil {
 		return
 	}
@@ -221,7 +221,7 @@ Shortcut for `rf.TrawlWith` without an additional filter. Takes an arbitrary
 source value and a pointer to an output slice. Walks the source value,
 appending all non-zero values of the matching type to the given slice.
 */
-func Trawl(src, out interface{}) {
+func Trawl[Src any, Out ~[]Elem, Elem any](src *Src, out *Out) {
 	TrawlWith(src, out, nil)
 }
 
@@ -231,8 +231,19 @@ value to collect all non-zero values of a specific type into an "output" slice.
 The source value may be of arbitrary type. The output must be a non-nil pointer
 to a slice. The additional filter is optional.
 */
-func TrawlWith(src, out interface{}, fil Filter) {
-	appender := Appender{ValidPtrToKind(out, r.Slice).Elem()}
+func TrawlWith[Src any, Out ~[]Elem, Elem any](src *Src, out *Out, fil Filter) {
+	if src == nil || out == nil {
+		return
+	}
+
+	/**
+	The unsafe cast is correct and safe. Workaround for Go limitations.
+	The following is equivalent and should work, but does not compile:
+
+		appender := (*Appender[Elem])(out)
+	*/
+	appender := cast[*Appender[Elem]](out)
+
 	filter := MaybeAnd(appender.Filter(), fil)
 	Walk(r.ValueOf(src), filter, appender)
 }
@@ -261,32 +272,35 @@ type All struct{}
 // Implement `rf.Filter`.
 func (All) Visit(r.Type, r.StructField) byte { return VisAll }
 
-// Shortcut, same as `rf.TypeFilter{rf.DerefType(typ)}`.
-func TypeFilterFor(typ interface{}) TypeFilter {
-	return TypeFilter{DerefType(typ)}
-}
-
 /*
 Implementation of `rf.Filter` that allows to visit values of this specific type.
 If the type is nil, this won't visit anything. The type may be either concrete
 or an interface. It also allows to visit descendants.
 */
-type TypeFilter [1]r.Type
+type TypeFilter[_ any] struct{}
 
 // Implement `rf.Filter`.
-func (self TypeFilter) Visit(typ r.Type, _ r.StructField) byte {
-	if self[0] == nil {
-		return VisNone
-	}
-	if self[0] == typ {
+func (TypeFilter[A]) Visit(typ r.Type, _ r.StructField) byte {
+	if typ == Type[A]() {
 		return VisBoth
 	}
 	return VisDesc
 }
 
-// Shortcut, same as `rf.IfaceFilter{rf.DerefType(typ)}`.
-func IfaceFilterFor(typ interface{}) IfaceFilter {
-	return IfaceFilter{DerefType(typ)}
+/*
+Implementation of `rf.Filter` that allows to visit values of the given
+`reflect.Kind`. If the kind is `reflect.Invalid`, this won't visit anything.
+
+Untested.
+*/
+type KindFilter r.Kind
+
+// Implement `rf.Filter`.
+func (self KindFilter) Visit(typ r.Type, _ r.StructField) byte {
+	if r.Kind(self) == typ.Kind() {
+		return VisBoth
+	}
+	return VisDesc
 }
 
 /*
@@ -299,34 +313,31 @@ must explicitly take value address:
 		val.Addr().Interface().(SomeInterface).SomeMethod()
 	}
 */
-type IfaceFilter [1]r.Type
+type IfaceFilter[_ any] struct{}
 
 // Implement `rf.Filter`.
-func (self IfaceFilter) Visit(typ r.Type, _ r.StructField) byte {
-	return ifaceVisit(typ, self[0], VisBoth)
-}
-
-// Shortcut, same as `rf.ShallowIfaceFilter{rf.DerefType(typ)}`.
-func ShallowIfaceFilterFor(typ interface{}) ShallowIfaceFilter {
-	return ShallowIfaceFilter{DerefType(typ)}
+func (IfaceFilter[A]) Visit(typ r.Type, _ r.StructField) byte {
+	return ifaceVisit(typ, Type[A](), VisBoth)
 }
 
 /*
-Like `IfaceFilter`, but visits either self or descendants, not both. In other
+Like `rf.IfaceFilter`, but visits either self or descendants, not both. In other
 words, once it finds a node that implements the given interface (by pointer),
 it allows to visit that node and stops there, without walking its descendants.
 */
-type ShallowIfaceFilter [1]r.Type
+type ShallowIfaceFilter[_ any] struct{}
 
 // Implement `rf.Filter`.
-func (self ShallowIfaceFilter) Visit(typ r.Type, _ r.StructField) byte {
-	return ifaceVisit(typ, self[0], VisSelf)
+func (ShallowIfaceFilter[A]) Visit(typ r.Type, _ r.StructField) byte {
+	return ifaceVisit(typ, Type[A](), VisSelf)
 }
 
 /*
 Implementation of `rf.Filter` that allows to visit values whose struct tag has a
 specific tag with a specific value, such as tag "json" with value "-". It also
 allows to visit descendants.
+
+Known limitation: can't differentiate empty tag from missing tag.
 */
 type TagFilter [2]string
 
@@ -388,10 +399,10 @@ func (self And) Visit(typ r.Type, field r.StructField) (vis byte) {
 		if val != nil {
 			if !found {
 				found = true
-				vis = ^byte(VisNone)
+				vis = val.Visit(typ, field)
+			} else {
+				vis &= val.Visit(typ, field)
 			}
-
-			vis &= val.Visit(typ, field)
 		}
 	}
 
@@ -440,33 +451,25 @@ type Nop struct{}
 // Implement `rf.Visitor`.
 func (Nop) Visit(r.Value, r.StructField) {}
 
-// Shortcut for making `rf.Appender`. The input must be a carrier of the element
-// type, not the slice type.
-func AppenderFor(typ interface{}) Appender {
-	return Appender{r.New(SliceType(typ)).Elem()}
-}
+// Implements `rf.Visitor` by appending visited non-zero elements.
+type Appender[A any] []A
 
 /*
-Implementation of `rf.Visitor` for collecting non-zero values of a single type
-into a slice. The inner value must be `reflect.Value` holding a slice. The
-value must be settable. Use `rf.AppenderFor` to instantiate this correctly.
+Implement `rf.Visitor` by appending the input value to the inner slice, if the
+value is non-zero.
 */
-type Appender [1]r.Value
-
-// Implement `rf.Visitor` by appending the input value to the inner slice, if
-// the value is non-zero.
-func (self Appender) Visit(val r.Value, _ r.StructField) {
-	if !val.IsZero() {
-		self[0].Set(r.Append(self[0], val))
+func (self *Appender[A]) Visit(val r.Value, _ r.StructField) {
+	if self != nil && !val.IsZero() {
+		if val.CanAddr() {
+			*self = append(*self, *val.Addr().Interface().(*A))
+		} else {
+			*self = append(*self, val.Interface().(A))
+		}
 	}
 }
 
-// Returns a filter that allows to visit only values suitable to be elements of
-// the slice held by the appender.
-func (self Appender) Filter() Filter {
-	return TypeFilter{self[0].Type().Elem()}
-}
-
-// Shortcut for `self[0].Interface()` insulating the caller from implementation
-// details.
-func (self Appender) Interface() interface{} { return self[0].Interface() }
+/*
+Returns a filter that allows to visit only values suitable to be elements of the
+slice held by the appender.
+*/
+func (self Appender[A]) Filter() Filter { return TypeFilter[A]{} }

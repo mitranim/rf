@@ -82,34 +82,34 @@ func ValidatePtr(val r.Value) r.Value {
 }
 
 // Shortcut for `rf.ValidateFunc(reflect.ValueOf(val))`.
-func ValidFunc(val interface{}) r.Value { return ValidateFunc(r.ValueOf(val)) }
+func ValidFunc(val any) r.Value { return ValidateFunc(r.ValueOf(val)) }
 
 // Shortcut for `rf.ValidateMap(reflect.ValueOf(val))`.
-func ValidMap(val interface{}) r.Value { return ValidateMap(r.ValueOf(val)) }
+func ValidMap(val any) r.Value { return ValidateMap(r.ValueOf(val)) }
 
 // Shortcut for `rf.ValidateSlice(reflect.ValueOf(val))`.
-func ValidSlice(val interface{}) r.Value { return ValidateSlice(r.ValueOf(val)) }
+func ValidSlice(val any) r.Value { return ValidateSlice(r.ValueOf(val)) }
 
 // Shortcut for `rf.ValidateStruct(reflect.ValueOf(val))`.
-func ValidStruct(val interface{}) r.Value { return ValidateStruct(r.ValueOf(val)) }
+func ValidStruct(val any) r.Value { return ValidateStruct(r.ValueOf(val)) }
 
 // Shortcut for `rf.ValidatePtr(reflect.ValueOf(val))`.
-func ValidPtr(val interface{}) r.Value { return ValidatePtr(r.ValueOf(val)) }
+func ValidPtr(val any) r.Value { return ValidatePtr(r.ValueOf(val)) }
 
 // Shortcut for `rf.ValidateTypeFunc(reflect.TypeOf(val))`.
-func ValidTypeFunc(val interface{}) r.Type { return ValidateTypeFunc(r.TypeOf(val)) }
+func ValidTypeFunc(val any) r.Type { return ValidateTypeFunc(r.TypeOf(val)) }
 
 // Shortcut for `rf.ValidateTypeMap(reflect.TypeOf(val))`.
-func ValidTypeMap(val interface{}) r.Type { return ValidateTypeMap(r.TypeOf(val)) }
+func ValidTypeMap(val any) r.Type { return ValidateTypeMap(r.TypeOf(val)) }
 
 // Shortcut for `rf.ValidateTypeSlice(reflect.TypeOf(val))`.
-func ValidTypeSlice(val interface{}) r.Type { return ValidateTypeSlice(r.TypeOf(val)) }
+func ValidTypeSlice(val any) r.Type { return ValidateTypeSlice(r.TypeOf(val)) }
 
 // Shortcut for `rf.ValidateTypeStruct(reflect.TypeOf(val))`.
-func ValidTypeStruct(val interface{}) r.Type { return ValidateTypeStruct(r.TypeOf(val)) }
+func ValidTypeStruct(val any) r.Type { return ValidateTypeStruct(r.TypeOf(val)) }
 
 // Shortcut for `rf.ValidateTypePtr(reflect.TypeOf(val))`.
-func ValidTypePtr(val interface{}) r.Type { return ValidateTypePtr(r.TypeOf(val)) }
+func ValidTypePtr(val any) r.Type { return ValidateTypePtr(r.TypeOf(val)) }
 
 /*
 Ensures that the value is a non-nil pointer where the underlying type has the
@@ -139,7 +139,7 @@ Shortcut for `rf.ValidatePtrToKind(reflect.ValueOf(val))`. Converts the input to
 `reflect.Value`, ensures that it's a non-nil pointer where the inner type has
 the required kind, and returns the resulting `reflect.Value`.
 */
-func ValidPtrToKind(val interface{}, exp r.Kind) r.Value {
+func ValidPtrToKind(val any, exp r.Kind) r.Value {
 	return ValidatePtrToKind(r.ValueOf(val), exp)
 }
 
@@ -168,7 +168,7 @@ Shortcut for `rf.ValidateSliceOfKind(reflect.ValueOf(val))`. Converts the input
 to `reflect.Value`, ensures that it's a slice where the element type has the
 required kind, and returns the resulting `reflect.Value`.
 */
-func ValidSliceOfKind(val interface{}, exp r.Kind) r.Value {
+func ValidSliceOfKind(val any, exp r.Kind) r.Value {
 	return ValidateSliceOfKind(r.ValueOf(val), exp)
 }
 
@@ -197,7 +197,7 @@ Shortcut for `rf.ValidateSliceOf(reflect.ValueOf(val))`. Converts the input to
 `reflect.Value`, ensures that it's a slice with the required element type, and
 returns the resulting `reflect.Value`.
 */
-func ValidSliceOf(val interface{}, exp r.Type) r.Value {
+func ValidSliceOf(val any, exp r.Type) r.Value {
 	return ValidateSliceOf(r.ValueOf(val), exp)
 }
 
@@ -271,20 +271,20 @@ of arbitrarily-nested pointer types) contains a type of the provided kind, and
 returns its dereferenced value. If any intermediary pointer is nil, the
 returned value is invalid.
 */
-func DerefWithKind(src interface{}, kind r.Kind) r.Value {
+func DerefWithKind(src any, kind r.Kind) r.Value {
 	val := r.ValueOf(src)
 	ValidateTypeKind(TypeDeref(ValueType(val)), kind)
 	return ValueDeref(val)
 }
 
 // Shortcut for `rf.DerefWithKind(val, reflect.Func)`.
-func DerefFunc(val interface{}) r.Value { return DerefWithKind(val, r.Func) }
+func DerefFunc(val any) r.Value { return DerefWithKind(val, r.Func) }
 
 // Shortcut for `rf.DerefWithKind(val, reflect.Map)`.
-func DerefMap(val interface{}) r.Value { return DerefWithKind(val, r.Map) }
+func DerefMap(val any) r.Value { return DerefWithKind(val, r.Map) }
 
 // Shortcut for `rf.DerefWithKind(val, reflect.Slice)`.
-func DerefSlice(val interface{}) r.Value { return DerefWithKind(val, r.Slice) }
+func DerefSlice(val any) r.Value { return DerefWithKind(val, r.Slice) }
 
 // Shortcut for `rf.DerefWithKind(val, reflect.Struct)`.
-func DerefStruct(val interface{}) r.Value { return DerefWithKind(val, r.Struct) }
+func DerefStruct(val any) r.Value { return DerefWithKind(val, r.Struct) }

@@ -6,6 +6,21 @@ See the full documentation at https://pkg.go.dev/github.com/mitranim/rf.
 
 ## Changelog
 
+### v0.5.0
+
+Converted the following tools to generics, for better type safety and efficiency:
+
+* `TypeFilter`
+* `IfaceFilter`
+* `ShallowIfaceFilter`
+* `Appender`
+* `Trawl`
+* `TrawlWith`
+
+Added `KindFilter` (untested).
+
+Added `Type`.
+
 ### v0.4.2
 
 Rename `WalkFuncPtr` → `WalkPtrFunc`.

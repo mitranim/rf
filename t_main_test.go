@@ -15,7 +15,7 @@ type Outer struct {
 	OuterStr   string            `json:"outerStr"   db:"outer_str"`
 	Inner      Inner             `json:"inner"      db:"inner"`
 	InnerPtr   *Inner            `json:"innerPtr"   db:"inner_ptr"`
-	OuterIface interface{}       `json:"outerIface" db:"outer_iface"`
+	OuterIface any               `json:"outerIface" db:"outer_iface"`
 	OuterDict  map[string]string `json:"outerDict"  db:"outer_dict"`
 }
 
@@ -68,7 +68,7 @@ var testDict = map[string]string{
 
 var testDictVal = r.ValueOf(testDict)
 
-func eq(t testing.TB, exp, act interface{}) {
+func eq(t testing.TB, exp, act any) {
 	t.Helper()
 	if !r.DeepEqual(exp, act) {
 		t.Fatalf(`
@@ -84,7 +84,7 @@ actual (simple):
 	}
 }
 
-func is(t testing.TB, exp, act interface{}) {
+func is(t testing.TB, exp, act any) {
 	t.Helper()
 
 	// nolint:structcheck
@@ -133,17 +133,17 @@ found the following message:
 	}
 }
 
-func funcName(val interface{}) string {
+func funcName(val any) string {
 	return runtime.FuncForPC(r.ValueOf(val).Pointer()).Name()
 }
 
-func catchAny(fun func()) (val interface{}) {
+func catchAny(fun func()) (val any) {
 	defer recAny(&val)
 	fun()
 	return
 }
 
-func recAny(ptr *interface{}) { *ptr = recover() }
+func recAny(ptr *any) { *ptr = recover() }
 
 func stringPtr(val string) *string { return &val }
 func intPtr(val int) *int          { return &val }
