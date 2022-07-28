@@ -6,6 +6,10 @@ See the full documentation at https://pkg.go.dev/github.com/mitranim/rf.
 
 ## Changelog
 
+### v0.5.1
+
+Walking now ignores private fields.
+
 ### v0.5.0
 
 Converted the following tools to generics, for better type safety and efficiency:

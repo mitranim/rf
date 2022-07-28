@@ -236,6 +236,12 @@ the public/private status of struct fields and type methods. Examples
 func IsPublic(pkgPath string) bool { return pkgPath == `` }
 
 /*
+True if the given struct field is considered public/exported. Shortcut for
+`rf.IsPublic(val.PkgPath)`.
+*/
+func IsFieldPublic(val r.StructField) bool { return IsPublic(val.PkgPath) }
+
+/*
 Takes a struct field tag and returns its identifier part, following the
 "encoding/json" conventions. Ident "-" is converted to "". Usage:
 

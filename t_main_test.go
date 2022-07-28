@@ -17,6 +17,9 @@ type Outer struct {
 	InnerPtr   *Inner            `json:"innerPtr"   db:"inner_ptr"`
 	OuterIface any               `json:"outerIface" db:"outer_iface"`
 	OuterDict  map[string]string `json:"outerDict"  db:"outer_dict"`
+
+	embedPrivate
+	private Private
 }
 
 type Inner struct {
@@ -29,6 +32,12 @@ type EmbedPtr = *Embed
 type Embed struct {
 	EmbedStr string `json:"embedStr" db:"embed_str"`
 	EmbedNum int    `json:"embedNum" db:"embed_num"`
+}
+
+type embedPrivate = Private
+
+type Private struct {
+	PrivateStr string `json:"privateStr" db:"private_str"`
 }
 
 var testOuter = Outer{

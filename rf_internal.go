@@ -27,6 +27,7 @@ type vis byte
 func (self vis) self() bool { return (self & VisSelf) != 0 }
 func (self vis) desc() bool { return (self & VisDesc) != 0 }
 
+// Short for "walk key".
 type walkey struct {
 	Type   r.Type
 	Parent r.Type
@@ -225,6 +226,10 @@ func makeStructWalker(typ, parent r.Type, field r.StructField, fil Filter) Walke
 
 func maybeAppendIndexWalker(out structWalker, typ r.Type, index int, fil Filter) structWalker {
 	field := typ.Field(index)
+	if !IsFieldPublic(field) {
+		return out
+	}
+
 	inner := walkerCacheStatic.get(field.Type, typ, field, fil)
 	if inner != nil {
 		out = append(out, indexWalker{index, inner})

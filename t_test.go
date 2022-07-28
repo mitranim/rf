@@ -171,6 +171,16 @@ func testIsNil(test func(bool, any)) {
 }
 
 func TestIsPublic(t *testing.T) {
+	testIsPublic(t, func(val r.StructField) bool {
+		return IsPublic(val.PkgPath)
+	})
+}
+
+func TestIsFieldPublic(t *testing.T) {
+	testIsPublic(t, IsFieldPublic)
+}
+
+func testIsPublic(t *testing.T, fun func(r.StructField) bool) {
 	typ := r.TypeOf(struct {
 		Public  string
 		private string
@@ -179,8 +189,8 @@ func TestIsPublic(t *testing.T) {
 	fieldPublic, _ := typ.FieldByName(`Public`)
 	fieldPrivate, _ := typ.FieldByName(`private`)
 
-	eq(t, true, IsPublic(fieldPublic.PkgPath))
-	eq(t, false, IsPublic(fieldPrivate.PkgPath))
+	eq(t, true, fun(fieldPublic))
+	eq(t, false, fun(fieldPrivate))
 }
 
 func TestTagIdent(t *testing.T) {
@@ -659,17 +669,21 @@ func testFields(t *testing.T, get func(any) []r.StructField) {
 		testFieldsShallow(t, get)
 	})
 
-	t.Run(`don't walk embedded`, func(t *testing.T) {
+	t.Run(`avoid_expanding_embedded`, func(t *testing.T) {
+		typ := r.TypeOf(Outer{})
+
 		eq(
 			t,
 			[]r.StructField{
-				r.TypeOf(Outer{}).Field(0),
-				r.TypeOf(Outer{}).Field(1),
-				r.TypeOf(Outer{}).Field(2),
-				r.TypeOf(Outer{}).Field(3),
-				r.TypeOf(Outer{}).Field(4),
-				r.TypeOf(Outer{}).Field(5),
-				r.TypeOf(Outer{}).Field(6),
+				typ.Field(0),
+				typ.Field(1),
+				typ.Field(2),
+				typ.Field(3),
+				typ.Field(4),
+				typ.Field(5),
+				typ.Field(6),
+				typ.Field(7),
+				typ.Field(8),
 			},
 			get((*Outer)(nil)),
 		)
