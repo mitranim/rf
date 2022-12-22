@@ -6,6 +6,10 @@ See the full documentation at https://pkg.go.dev/github.com/mitranim/rf.
 
 ## Changelog
 
+### v0.5.2
+
+Walking now avoids stack overflow on cyclic types. More specifically, it avoids infinite recursion when generating walkers for cyclic types. Note that fully walking cyclic types is not yet supported; instead, inner occurrences of a cyclic type are ignored, and only the outermost occurrence is walked. This limitation may be lifted in future versions.
+
 ### v0.5.1
 
 Walking now ignores private fields.

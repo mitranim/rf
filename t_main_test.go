@@ -9,6 +9,7 @@ import (
 	"unsafe"
 )
 
+//nolint:unused
 type Outer struct {
 	Embed
 	EmbedPtr
@@ -38,6 +39,21 @@ type embedPrivate = Private
 
 type Private struct {
 	PrivateStr string `json:"privateStr" db:"private_str"`
+}
+
+type CyclicByPtr struct {
+	Inner *CyclicByPtr
+	Value string
+}
+
+type CyclicBySlice struct {
+	Inner []CyclicBySlice
+	Value string
+}
+
+type CyclicByMap struct {
+	Inner map[string]CyclicByMap
+	Value string
 }
 
 var testOuter = Outer{
@@ -120,6 +136,26 @@ expected (simple):
 actual (simple):
 	%[4]v
 `, expIface, actIface, exp, act)
+	}
+}
+
+func isNil(t testing.TB, act any) {
+	t.Helper()
+	if act != nil {
+		t.Fatalf(`
+unexpected non-nil;
+actual (detailed):
+	%#[1]v
+actual (simple):
+	%[1]v
+`, act)
+	}
+}
+
+func isNotNil(t testing.TB, act any) {
+	t.Helper()
+	if act == nil {
+		t.Fatalf(`unexpected nil %T`, act)
 	}
 }
 

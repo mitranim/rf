@@ -16,6 +16,9 @@ var (
 )
 
 func BenchmarkGetWalker(b *testing.B) {
+	benchGetWalker()
+	b.ResetTimer()
+
 	for range Iter(b.N) {
 		benchGetWalker()
 	}
@@ -26,6 +29,9 @@ func benchGetWalker() {
 }
 
 func BenchmarkWalk(b *testing.B) {
+	benchWalk()
+	b.ResetTimer()
+
 	for range Iter(b.N) {
 		benchWalk()
 	}
@@ -43,8 +49,8 @@ func Benchmark_range_slice_values(b *testing.B) {
 
 func benchRangeSliceValues(src any) {
 	val := r.ValueOf(src)
-	for i := range Iter(val.Len()) {
-		val.Index(i).Interface()
+	for ind := range Iter(val.Len()) {
+		val.Index(ind).Interface()
 	}
 }
 
@@ -56,8 +62,8 @@ func Benchmark_range_slice_pointers(b *testing.B) {
 
 func benchRangeSlicePointers(src any) {
 	val := r.ValueOf(src).Elem()
-	for i := range Iter(val.Len()) {
-		val.Index(i).Addr().Interface()
+	for ind := range Iter(val.Len()) {
+		val.Index(ind).Addr().Interface()
 	}
 }
 
@@ -186,8 +192,8 @@ func Benchmark_Path_Add_Reset(b *testing.B) {
 	path := make(Path, 0, expectedStructNesting)
 	b.ResetTimer()
 
-	for i := range Iter(b.N) {
-		benchPathAddReset(&path, i)
+	for ind := range Iter(b.N) {
+		benchPathAddReset(&path, ind)
 	}
 }
 

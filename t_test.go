@@ -34,7 +34,7 @@ func TestDerefKind(t *testing.T) {
 }
 
 func TestDerefType(t *testing.T) {
-	eq(t, nil, DerefType(nil))
+	isNil(t, DerefType(nil))
 	eq(t, r.TypeOf(``), DerefType(``))
 	eq(t, r.TypeOf(``), DerefType((*string)(nil)))
 	eq(t, r.TypeOf(``), DerefType((**string)(nil)))
@@ -45,7 +45,7 @@ func TestDerefType(t *testing.T) {
 }
 
 func TestTypeDeref(t *testing.T) {
-	eq(t, nil, TypeDeref(r.TypeOf(nil)))
+	isNil(t, TypeDeref(r.TypeOf(nil)))
 	eq(t, r.TypeOf(``), TypeDeref(r.TypeOf((**string)(nil))))
 	eq(t, r.TypeOf([]string(nil)), TypeDeref(r.TypeOf(([]string)(nil))))
 	eq(t, r.TypeOf([]string(nil)), TypeDeref(r.TypeOf((**[]string)(nil))))
@@ -85,7 +85,7 @@ func TestValueDeref(t *testing.T) {
 }
 
 func TestElemType(t *testing.T) {
-	eq(t, nil, ElemType(nil))
+	isNil(t, ElemType(nil))
 	eq(t, r.TypeOf(nil), ElemType(nil))
 	eq(t, r.TypeOf((*any)(nil)).Elem(), ElemType((*any)(nil)))
 	eq(t, r.TypeOf((*any)(nil)).Elem(), ElemType((**any)(nil)))
@@ -114,13 +114,13 @@ func TestElemType(t *testing.T) {
 }
 
 func TestTypeElem(t *testing.T) {
-	eq(t, nil, TypeElem(r.TypeOf(nil)))
+	isNil(t, TypeElem(r.TypeOf(nil)))
 	eq(t, r.TypeOf(``), TypeElem(r.TypeOf((**[]**[]**string)(nil))))
 	eq(t, r.TypeOf([0]string{}), TypeElem(r.TypeOf((**[]**[0]string)(nil))))
 }
 
 func TestValueType(t *testing.T) {
-	eq(t, nil, ValueType(r.Value{}))
+	isNil(t, ValueType(r.Value{}))
 	eq(t, r.TypeOf(``), ValueType(r.ValueOf(``)))
 	eq(t, r.TypeOf((*string)(nil)), ValueType(r.ValueOf((*string)(nil))))
 	eq(t, r.TypeOf((*any)(nil)), ValueType(r.ValueOf((*any)(nil))))
@@ -526,9 +526,9 @@ func TestAppender(t *testing.T) {
 }
 
 func TestGetWalker_nil(t *testing.T) {
-	eq(t, nil, GetWalker(nil, nil))
-	eq(t, nil, GetWalker(r.TypeOf(``), nil))
-	eq(t, nil, GetWalker(nil, All{}))
+	isNil(t, GetWalker(nil, nil))
+	isNil(t, GetWalker(r.TypeOf(``), nil))
+	isNil(t, GetWalker(nil, All{}))
 }
 
 func TestGetWalker_caching(t *testing.T) {
@@ -631,6 +631,80 @@ func testWalkPtr(t testing.TB, fun func(any)) {
 	exp.Inner.InnerStr = `val`
 
 	eq(t, exp, tar)
+}
+
+/**
+The inner value is missing because we currently don't walk inner occurrences of
+a cyclic type, only the outermost occurrence. This is a technical limitation
+and we would like to fix this in the future.
+*/
+func Test_walking_cyclic_by_ptr(t *testing.T) {
+	type Type = CyclicByPtr
+
+	testGetWalkerCyclic[Type](t)
+
+	testWalkCyclic(t, &Type{
+		Inner: &Type{Value: `inner_val`},
+		Value: `outer_val`,
+	})
+}
+
+// The inner value is missing for the same reason as with `CyclicByPtr`.
+func Test_walking_cyclic_by_slice(t *testing.T) {
+	type Type = CyclicBySlice
+
+	testGetWalkerCyclic[Type](t)
+
+	testWalkCyclic(t, &Type{
+		Inner: []Type{{Value: `inner_val`}},
+		Value: `outer_val`,
+	})
+}
+
+/**
+Unlike pointers and slices, we don't walk maps. In this test, the inner value
+will be missing even if we someday implement proper walking of cyclic types.
+*/
+func Test_walking_cyclic_by_map(t *testing.T) {
+	type Type = CyclicByMap
+
+	testGetWalkerCyclic[Type](t)
+
+	testWalkCyclic(t, &Type{
+		Inner: map[string]CyclicByMap{`inner`: {Value: `inner_val`}},
+		Value: `outer_val`,
+	})
+}
+
+func testGetWalkerCyclic[A any](t *testing.T) {
+	var zero A
+	var ptr *A
+
+	isNil(t, GetWalker(r.TypeOf(zero), nil))
+
+	isNil(t, GetWalker(r.TypeOf(zero), TypeFilter[int]{}))
+	isNil(t, GetWalker(r.TypeOf(ptr), TypeFilter[int]{}))
+
+	isNotNil(t, GetWalker(r.TypeOf(zero), TypeFilter[string]{}))
+	isNotNil(t, GetWalker(r.TypeOf(ptr), TypeFilter[string]{}))
+
+	is(
+		t,
+		GetWalker(r.TypeOf(zero), TypeFilter[string]{}),
+		GetWalker(r.TypeOf(zero), TypeFilter[string]{}),
+	)
+
+	is(
+		t,
+		GetWalker(r.TypeOf(ptr), TypeFilter[string]{}),
+		GetWalker(r.TypeOf(ptr), TypeFilter[string]{}),
+	)
+}
+
+func testWalkCyclic(t *testing.T, src any) {
+	var tar Appender[string]
+	WalkPtr(src, tar.Filter(), &tar)
+	eq(t, Appender[string]{`outer_val`}, tar)
 }
 
 func TestIsEmbed(t *testing.T) {
@@ -1088,10 +1162,10 @@ func TestAnd(t *testing.T) {
 }
 
 func TestMaybeAnd(t *testing.T) {
-	eq(t, nil, MaybeAnd())
-	eq(t, nil, MaybeAnd(nil))
-	eq(t, nil, MaybeAnd(nil, nil))
-	eq(t, nil, MaybeAnd(nil, nil, nil))
+	isNil(t, MaybeAnd())
+	isNil(t, MaybeAnd(nil))
+	isNil(t, MaybeAnd(nil, nil))
+	isNil(t, MaybeAnd(nil, nil, nil))
 	eq(t, Self{}, MaybeAnd(Self{}))
 	eq(t, Self{}, MaybeAnd(Self{}, nil))
 	eq(t, Self{}, MaybeAnd(nil, Self{}))
@@ -1136,10 +1210,10 @@ func TestOr(t *testing.T) {
 }
 
 func TestMaybeOr(t *testing.T) {
-	eq(t, nil, MaybeOr())
-	eq(t, nil, MaybeOr(nil))
-	eq(t, nil, MaybeOr(nil, nil))
-	eq(t, nil, MaybeOr(nil, nil, nil))
+	isNil(t, MaybeOr())
+	isNil(t, MaybeOr(nil))
+	isNil(t, MaybeOr(nil, nil))
+	isNil(t, MaybeOr(nil, nil, nil))
 	eq(t, Self{}, MaybeOr(Self{}))
 	eq(t, Self{}, MaybeOr(Self{}, nil))
 	eq(t, Self{}, MaybeOr(nil, Self{}))

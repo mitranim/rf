@@ -40,7 +40,7 @@ func (self *Cache) Get(key r.Type) any {
 Zero-cost integer iterator. Usage:
 
 	for range rf.Iter(N) { ... }
-	for i := range rf.Iter(N) { ... }
+	for ind := range rf.Iter(N) { ... }
 
 Because `struct{}` is zero-sized, `[]struct{}` is backed by "zerobase"
 (see "runtime/malloc.go") and does not allocate. This should perform about as

@@ -236,8 +236,8 @@ func ValidateFuncIn(typ r.Type, params ...r.Type) {
 	ValidateTypeFunc(typ)
 	ValidateFuncNumIn(typ, len(params))
 
-	for i, param := range params {
-		if param != nil && param != typ.In(i) {
+	for ind, param := range params {
+		if param != nil && param != typ.In(ind) {
 			panic(Err{
 				`validating func type`,
 				fmt.Errorf(`expected func type with input types %v, found type %v`, params, typ),
@@ -255,8 +255,8 @@ func ValidateFuncOut(typ r.Type, params ...r.Type) {
 	ValidateTypeFunc(typ)
 	ValidateFuncNumOut(typ, len(params))
 
-	for i, param := range params {
-		if param != nil && param != typ.Out(i) {
+	for ind, param := range params {
+		if param != nil && param != typ.Out(ind) {
 			panic(Err{
 				`validating func type`,
 				fmt.Errorf(`expected func type with output types %v, found type %v`, params, typ),

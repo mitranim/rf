@@ -37,3 +37,15 @@ func (self Err) format(typ string) string {
 
 	return buf.String()
 }
+
+/*
+String typedef that implements `error`. Errors of this type can be defined as
+constants.
+*/
+type ErrStr string
+
+// Implement `error`.
+func (self ErrStr) Error() string { return string(self) }
+
+// Implement `fmt.Stringer`.
+func (self ErrStr) String() string { return string(self) }
